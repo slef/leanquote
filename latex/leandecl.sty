@@ -8,11 +8,13 @@
 % is shown with the `doc` option. Names may be short (`Tiles`) or qualified (`Abstract.Tiles`).
 % An unknown name is an error. If the file is newer than its compiled `.olean`
 % (under `project`/.lake/build/lib/lean/), LaTeX warns that it may not be what Lean checked.
-% Exports written by `leandecl-export` (`.leandecl` files) are also accepted.
+% Optional: if `leandecl-export` was run, its export (under `project`/.lake/build/leandecl/, or
+% next to the `.lean` file) is used automatically for exact declaration boundaries, as long as
+% the `.lean` file has not changed since; otherwise the `.lean` file is read directly.
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leandecl}{2026-10-25}{0.2}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leandecl}{2026-10-25}{0.3}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -64,6 +66,11 @@
 \msg_new:nnn { leandecl } { uncompiled }
   { #1~is~newer~than~its~compiled~file~#2.~The~code~shown~may~not~be~what~Lean~checked:~
     run~lake~build. }
+\msg_new:nnn { leandecl } { using-export }
+  { Using~#2~for~exact~declaration~boundaries~of~#1. }
+\msg_new:nnn { leandecl } { stale-fallback }
+  { #1~has~changed~since~it~was~exported~to~#2.~Reading~#1~directly~instead;~
+    re-run~leandecl-export~for~exact~declaration~boundaries. }
 \msg_new:nnn { leandecl } { no-olean }
   { No~compiled~file~#2~for~#1;~cannot~check~that~it~was~compiled.~
     Set~the~project~option~to~the~root~of~its~Lake~project,~or~olean~to~the~file. }
@@ -74,6 +81,7 @@
 \cs_generate_variant:Nn \msg_info:nnnn { nnnV }
 \cs_generate_variant:Nn \file_if_exist:nTF { V }
 \cs_generate_variant:Nn \file_if_exist:nF { V }
+\cs_generate_variant:Nn \file_if_exist:nT { V }
 \cs_generate_variant:Nn \str_range:nnn { e }
 
 % ---------------------------------------------------------------- state
@@ -288,6 +296,47 @@
       }
   }
 
+% Is the export #1 up to date with the source #2? Sets \l__leandecl_fresh_bool; cached per run.
+\bool_new:N \l__leandecl_fresh_bool
+\prop_new:N \g__leandecl_fresh_prop
+\cs_new_protected:Npn \__leandecl_export_fresh:nn #1#2
+  {
+    \prop_get:NnNTF \g__leandecl_fresh_prop {#1} \l_tmpb_tl
+      { \bool_set:Nn \l__leandecl_fresh_bool { \tl_if_eq_p:Nn \l_tmpb_tl { 1 } } }
+      {
+        \str_clear:N \l__leandecl_stored_str
+        \ior_open:Nn \g__leandecl_ior {#1}
+        \ior_str_map_inline:Nn \g__leandecl_ior
+          {
+            \regex_match:nnT { \A @@src\x{20} } {##1}
+              { \str_put_right:Ne \l__leandecl_stored_str { \str_range:nnn {##1} {7} {-1} | } }
+            \regex_match:nnT { \A @@src \Z } {##1}
+              { \str_put_right:Nn \l__leandecl_stored_str { | } }
+          }
+        \ior_close:N \g__leandecl_ior
+        \str_clear:N \l__leandecl_current_str
+        \ior_open:Nn \g__leandecl_ior {#2}
+        \ior_str_map_inline:Nn \g__leandecl_ior
+          { \str_put_right:Nn \l__leandecl_current_str { ##1 | } }
+        \ior_close:N \g__leandecl_ior
+        \str_if_eq:NNTF \l__leandecl_stored_str \l__leandecl_current_str
+          {
+            \bool_set_true:N \l__leandecl_fresh_bool
+            \prop_gput:Nnn \g__leandecl_fresh_prop {#1} { 1 }
+            \msg_info:nnnn { leandecl } { using-export } {#2} {#1}
+          }
+          {
+            \bool_set_false:N \l__leandecl_fresh_bool
+            \prop_gput:Nnn \g__leandecl_fresh_prop {#1} { 0 }
+            \msg_warning:nnnn { leandecl } { stale-fallback } {#2} {#1}
+          }
+      }
+  }
+\cs_generate_variant:Nn \__leandecl_export_fresh:nn { VV }
+\cs_generate_variant:Nn \__leandecl_from_export:n { V }
+\str_new:N \l__leandecl_export_str
+\bool_new:N \l__leandecl_useexport_bool
+
 % ---------------------------------------------------------------- main command
 \cs_new_protected:Npn \__leandecl_typeset:nn #1#2
   {
@@ -304,6 +353,22 @@
       { \l_leandecl_check_bool }
       { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean } }
       { \exp_args:NV \__leandecl_check_compiled:nn \l__leandecl_file_str {#1} }
+    \bool_set_false:N \l__leandecl_useexport_bool
+    \str_if_eq:eeT { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
+      {
+        \str_set:Ne \l__leandecl_export_str
+          { \l_leandecl_project_tl .lake/build/leandecl/ \str_range:nnn {#1} {1} {-6} .leandecl }
+        \file_if_exist:VF \l__leandecl_export_str
+          {
+            \str_set:Ne \l__leandecl_export_str
+              { \l_leandecl_project_tl \str_range:nnn {#1} {1} {-6} .leandecl }
+          }
+        \file_if_exist:VT \l__leandecl_export_str
+          {
+            \__leandecl_export_fresh:VV \l__leandecl_export_str \l__leandecl_file_str
+            \bool_set_eq:NN \l__leandecl_useexport_bool \l__leandecl_fresh_bool
+          }
+      }
     \int_gincr:N \g__leandecl_count_int
     \str_set:Ne \l__leandecl_out_str
       { \c_sys_jobname_str -leandecl- \int_use:N \g__leandecl_count_int .lean }
@@ -316,9 +381,13 @@
         \str_set:NV \l__leandecl_name_str \l_tmpa_tl
         \bool_if:NF \l__leandecl_first_bool { \__leandecl_write:n { } }
         \bool_set_false:N \l__leandecl_first_bool
-        \str_if_eq:eeTF { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
-          { \exp_args:NV \__leandecl_from_source:n \l__leandecl_file_str }
-          { \__leandecl_from_export:n {#1} }
+        \bool_if:NTF \l__leandecl_useexport_bool
+          { \__leandecl_from_export:V \l__leandecl_export_str }
+          {
+            \str_if_eq:eeTF { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
+              { \exp_args:NV \__leandecl_from_source:n \l__leandecl_file_str }
+              { \__leandecl_from_export:n {#1} }
+          }
         \bool_if:NF \l__leandecl_found_bool
           { \msg_error:nnVV { leandecl } { not-found } \l__leandecl_name_str \l__leandecl_file_str }
         \int_compare:nNnT { \l__leandecl_matches_int } > { 1 }

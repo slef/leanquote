@@ -48,11 +48,21 @@ All declarations named in one `\leandecl` go into one listing.
 
 ### Optional: exact boundaries with `leandecl-export`
 
-For files laid out unusually, `leandecl-export MODULE out.leandecl` (run from the Lake project)
-builds the module and records each declaration's exact text from Lean's own declaration
-ranges, with a copy of the source; `\leandecl{out.leandecl}{Name}` then uses that, and warns if
-the source has changed since the export. The exporter is a single Lean file
-(`lean/LeanDeclExport.lean`), run with `lake env lean --run`.
+If you want Lean itself to say where each declaration starts and ends, run, from the root of the
+Lake project:
+
+```sh
+path/to/leandecl/leandecl-export TranslationTiling.Abstract [MORE.Modules ...]
+```
+
+This builds each module and writes `.lake/build/leandecl/TranslationTiling/Abstract.leandecl`
+(inside the build directory, so not tracked by git). From then on, `\leandecl` finds it
+automatically and uses Lean's exact declaration ranges, nothing else changes in the paper.
+If `Abstract.lean` is edited after the export, LaTeX warns and falls back to reading the
+`.lean` file directly, so the paper always shows the current code. An export placed next to the
+`.lean` file (`Abstract.leandecl`) is also found, and an export can be given explicitly as
+`\leandecl{Abstract.leandecl}{...}`. The exporter is a single Lean file
+(`lean/LeanDeclExport.lean`), run with `lake env lean --run`; nothing is added to your project.
 
 ## Options
 
@@ -93,7 +103,7 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 - The default style maps common Unicode symbols for pdfLaTeX. Other symbols can be added with
   `literate`, or use LuaLaTeX/XeLaTeX with a Unicode monospace font.
 
-Tested with Lean v4.28.0, v4.31.0 and v4.35.0, and pdfLaTeX from TeX Live 2025.
+Tested with Lean v4.28.0, v4.31.0 and v4.35.0 (exporter), and pdfLaTeX from TeX Live 2025.
 
 ## License
 
