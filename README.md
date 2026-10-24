@@ -57,6 +57,7 @@ Set per call (`\leandecl[doc]{...}{...}`) or for the whole document (`\leandecls
 | `style=<name>` | `leandecl` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `check` | true | warn if the `.lean` source has changed since the export |
 | `root=<dir>/` | empty | prefix for finding the `.lean` source recorded in the export, for the check |
+| `source=<path>` | | the `.lean` file to check against, if it is not at the recorded path |
 | any other key | | passed to `\lstinputlisting` (e.g. `basicstyle=\footnotesize\ttfamily`) |
 
 ## Texlish

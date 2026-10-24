@@ -7,6 +7,8 @@
 % changed since), or a `.lean` file (a declaration then runs from its `def`/`theorem`/... line to
 % the next blank line). Names may be short (`Tiles`) or fully qualified
 % (`TranslationTiling.Abstract.Tiles`). All requested declarations go into one listing.
+% Option `source=<path>` names the `.lean` file to compare against the export (by default, the
+% path recorded in the export, prefixed by `root`).
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
@@ -36,6 +38,8 @@
     check .bool_set:N = \l_leandecl_check_bool ,
     check .default:n  = true ,
     check .initial:n  = true ,
+    source .tl_set:N  = \l_leandecl_source_tl ,
+    source .initial:n = {} ,
     unknown .code:n   =
       \tl_put_right:Nx \l__leandecl_lst_tl
         { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
@@ -169,6 +173,8 @@
               { \str_set:Ne \l__leandecl_srcpath_str { \l_leandecl_root_tl \str_range:nnn {##1} {10} {-1} } }
           }
         \ior_close:N \g__leandecl_ior
+        \tl_if_blank:VF \l_leandecl_source_tl
+          { \str_set:NV \l__leandecl_srcpath_str \l_leandecl_source_tl }
         \file_if_exist:nT { \l__leandecl_srcpath_str }
           {
             \str_clear:N \l__leandecl_current_str
@@ -200,7 +206,9 @@
     \bool_set_true:N \l__leandecl_first_bool
     \clist_map_inline:nn {#2}
       {
-        \str_set:Ne \l__leandecl_name_str { \tl_trim_spaces:n {##1} }
+        \tl_set:Ne \l_tmpa_tl { \tl_to_str:n {##1} }
+        \tl_trim_spaces:N \l_tmpa_tl
+        \str_set:NV \l__leandecl_name_str \l_tmpa_tl
         \bool_if:NF \l__leandecl_first_bool { \__leandecl_write:n { } }
         \bool_set_false:N \l__leandecl_first_bool
         \str_if_eq:eeTF { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
