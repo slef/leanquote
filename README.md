@@ -19,31 +19,40 @@ It was written for papers that present a short, human-readable `Abstract.lean` (
 main theorem statements of a formalization, proved through a bridge to the full development),
 but works with any Lean 4 file.
 
-## Two parts
+## Usage
 
-1. **`leandecl-export`** (Lean side). From the root of the Lake project:
+Put `latex/leandecl.sty` where LaTeX can find it (next to your paper, or in `TEXINPUTS`), then:
 
-   ```sh
-   path/to/leandecl/leandecl-export TranslationTiling.Abstract ../paper/Abstract.leandecl
-   ```
+```latex
+\usepackage{leandecl}
+\leandeclsetup{project=../lean/}   % root of your Lake project
+...
+\leandecl{TranslationTiling/Abstract.lean}{Point, Prototile}
+\leandecl[doc]{TranslationTiling/Abstract.lean}{Tiles}
+```
 
-   This runs `lake build` on the module, then writes every declaration of the compiled module to
-   a `.leandecl` file: its exact text (from Lean's own declaration ranges), its doc comment kept
-   separately, and a copy of the source as compiled. No dependency to add to your project; the
-   exporter is a single Lean file (`lean/LeanDeclExport.lean`) run with `lake env lean --run`.
+No step on the Lean side beyond your usual `lake build`:
 
-2. **`leandecl.sty`** (LaTeX side). Put `latex/leandecl.sty` where LaTeX can find it (next to
-   your paper, or in `TEXINPUTS`), then:
+- **Finding a declaration.** It starts at its `def`/`theorem`/`abbrev`/... line in column 0
+  (with any attribute lines, and the doc comment if `doc` is set), and continues while lines are
+  blank, indented, or start with `|`, `termination_by`, `decreasing_by` or `deriving`. This
+  matches the standard Lean layout. Names may be short (`Tiles`) or qualified (`Abstract.Tiles`).
+  An unknown name is an error.
+- **Checking it was compiled.** If the `.lean` file is newer than its compiled
+  `.lake/build/lib/lean/.../File.olean` (found from `project`), LaTeX warns that the code shown
+  may not be what Lean checked. After a successful `lake build`, the `.olean` is newer, so no
+  warning. If there is no `.olean` (for example, a copy of the file outside its project), LaTeX
+  only notes that it cannot check.
 
-   ```latex
-   \leandecl[options]{file}{Name1, Name2, ...}
-   ```
+All declarations named in one `\leandecl` go into one listing.
 
-   - `file` is a `.leandecl` export (recommended) or a `.lean` file. Reading a `.lean` file
-     directly also works, but a declaration is then taken to run from its `def`/`theorem`/...
-     line to the next blank line.
-   - Names may be short (`Tiles`) or fully qualified (`TranslationTiling.Abstract.Tiles`).
-     All the named declarations are typeset together in one listing.
+### Optional: exact boundaries with `leandecl-export`
+
+For files laid out unusually, `leandecl-export MODULE out.leandecl` (run from the Lake project)
+builds the module and records each declaration's exact text from Lean's own declaration
+ranges, with a copy of the source; `\leandecl{out.leandecl}{Name}` then uses that, and warns if
+the source has changed since the export. The exporter is a single Lean file
+(`lean/LeanDeclExport.lean`), run with `lake env lean --run`.
 
 ## Options
 
@@ -55,9 +64,10 @@ Set per call (`\leandecl[doc]{...}{...}`) or for the whole document (`\leandecls
 | `box` | true | put the listing in a light box (`leandeclbox`) |
 | `logo=<file>` | none | image shown in the box's top-right corner (e.g. the Lean logo) |
 | `style=<name>` | `leandecl` | listings style; the default handles common Lean Unicode for pdfLaTeX |
-| `check` | true | warn if the `.lean` source has changed since the export |
-| `root=<dir>/` | empty | prefix for finding the `.lean` source recorded in the export, for the check |
-| `source=<path>` | | the `.lean` file to check against, if it is not at the recorded path |
+| `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
+| `olean=<file>` | | the compiled file to compare with, if not at the standard place |
+| `check` | true | warn if the `.lean` file is newer than its `.olean` (or, for exports, has changed since the export) |
+| `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
 | any other key | | passed to `\lstinputlisting` (e.g. `basicstyle=\footnotesize\ttfamily`) |
 
 ## Texlish
@@ -68,8 +78,8 @@ Set per call (`\leandecl[doc]{...}{...}`) or for the whole document (`\leandecls
 ## Example
 
 `example/example.tex` typesets the abstract of
-[translation-tiling-paper](https://github.com/edemaine/translation-tiling-paper) from
-`example/Abstract.leandecl`:
+[translation-tiling-paper](https://github.com/edemaine/translation-tiling-paper) from a copy of
+its `Abstract.lean` (and, once, from the optional export `example/Abstract.leandecl`):
 
 ```sh
 cd example && TEXINPUTS=../latex: pdflatex example.tex
@@ -77,10 +87,9 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 
 ## What is and is not guaranteed
 
-- The code shown is the text of declarations of a module that Lean compiled (when using an
-  export), so it is exactly what Lean checked at export time.
-- The freshness check compares the source recorded in the export with the current `.lean` file;
-  it does not recompile anything. Re-run `leandecl-export` after changing the Lean file.
+- The code shown is the current text of the `.lean` file. With `project` set and no warning, that
+  file is older than its compiled `.olean`, so it is what Lean last compiled (assuming the build
+  succeeded, which is when Lake writes the `.olean`). LaTeX never compiles Lean itself.
 - The default style maps common Unicode symbols for pdfLaTeX. Other symbols can be added with
   `literate`, or use LuaLaTeX/XeLaTeX with a Unicode monospace font.
 

@@ -1,18 +1,18 @@
 % leandecl.sty -- typeset Lean declarations by name, copied verbatim from Lean sources.
 %
-%   \leandecl[options]{file}{Name1, Name2, ...}
+%   \leandeclsetup{project=../lean/}        % root of the Lake project (optional)
+%   \leandecl[options]{Path/To/File.lean}{Name1, Name2, ...}
 %
-% `file` is either a `.leandecl` export written by `leandecl-export` (recommended: exact
-% declaration boundaries from the compiled module, and a warning if the `.lean` source has
-% changed since), or a `.lean` file (a declaration then runs from its `def`/`theorem`/... line to
-% the next blank line). Names may be short (`Tiles`) or fully qualified
-% (`TranslationTiling.Abstract.Tiles`). All requested declarations go into one listing.
-% Option `source=<path>` names the `.lean` file to compare against the export (by default, the
-% path recorded in the export, prefixed by `root`).
+% A declaration is found by its `def`/`theorem`/... line in column 0 and runs while lines are
+% indented (or start with `|`, `termination_by`, `decreasing_by`, `deriving`); its doc comment
+% is shown with the `doc` option. Names may be short (`Tiles`) or qualified (`Abstract.Tiles`).
+% An unknown name is an error. If the file is newer than its compiled `.olean`
+% (under `project`/.lake/build/lib/lean/), LaTeX warns that it may not be what Lean checked.
+% Exports written by `leandecl-export` (`.leandecl` files) are also accepted.
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leandecl}{2026-10-25}{0.1}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leandecl}{2026-10-25}{0.2}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -40,6 +40,10 @@
     check .initial:n  = true ,
     source .tl_set:N  = \l_leandecl_source_tl ,
     source .initial:n = {} ,
+    project .tl_set:N  = \l_leandecl_project_tl ,
+    project .initial:n = {} ,
+    olean .tl_set:N   = \l_leandecl_olean_tl ,
+    olean .initial:n  = {} ,
     unknown .code:n   =
       \tl_put_right:Nx \l__leandecl_lst_tl
         { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
@@ -57,9 +61,20 @@
 \msg_new:nnn { leandecl } { stale }
   { #1~has~changed~since~#2~was~exported.~The~code~shown~may~be~out~of~date:~
     rebuild~and~run~leandecl-export~again. }
-\msg_new:nnn { leandecl } { heuristic }
-  { Reading~#1~directly:~declaration~boundaries~are~guessed~(up~to~the~next~blank~line).~
-    Use~leandecl-export~for~exact~boundaries. }
+\msg_new:nnn { leandecl } { uncompiled }
+  { #1~is~newer~than~its~compiled~file~#2.~The~code~shown~may~not~be~what~Lean~checked:~
+    run~lake~build. }
+\msg_new:nnn { leandecl } { no-olean }
+  { No~compiled~file~#2~for~#1;~cannot~check~that~it~was~compiled.~
+    Set~the~project~option~to~the~root~of~its~Lake~project,~or~olean~to~the~file. }
+
+\cs_generate_variant:Nn \msg_warning:nnnn { nnnV , nnVn }
+\cs_generate_variant:Nn \msg_error:nnn { nnV }
+\cs_generate_variant:Nn \msg_error:nnnn { nnVV }
+\cs_generate_variant:Nn \msg_info:nnnn { nnnV }
+\cs_generate_variant:Nn \file_if_exist:nTF { V }
+\cs_generate_variant:Nn \file_if_exist:nF { V }
+\cs_generate_variant:Nn \str_range:nnn { e }
 
 % ---------------------------------------------------------------- state
 \ior_new:N \g__leandecl_ior
@@ -114,39 +129,124 @@
     \ior_close:N \g__leandecl_ior
   }
 
-% ---------------------------------------------------------------- raw .lean files
-\cs_new_protected:Npn \__leandecl_from_source:n #1
+% ---------------------------------------------------------------- .lean files
+% A declaration starts at a line `[@[...]] [modifiers] def|theorem|... Name` in column 0, with
+% the doc comment and attribute lines just above it, and continues while lines are blank,
+% indented, or start with `|`, `termination_by`, `decreasing_by` or `deriving`.
+\seq_new:N \l__leandecl_doc_seq
+\seq_new:N \l__leandecl_attr_seq
+\seq_new:N \l__leandecl_blank_seq
+\bool_new:N \l__leandecl_indoc_bool
+\bool_new:N \l__leandecl_consumed_bool
+\cs_new_protected:Npn \__leandecl_src_inside:n #1
   {
-    \bool_set_false:N \l__leandecl_inside_bool
-    \bool_set_false:N \l__leandecl_found_bool
-    \int_zero:N \l__leandecl_matches_int
-    \ior_open:Nn \g__leandecl_ior {#1}
-    \ior_str_map_inline:Nn \g__leandecl_ior
+    \regex_match:nnTF { \A \s* \Z } {#1}
+      { \seq_put_right:Nn \l__leandecl_blank_seq { } \bool_set_true:N \l__leandecl_consumed_bool }
       {
-        \bool_if:NTF \l__leandecl_inside_bool
+        \regex_match:nnTF { \A ( \s | \| | termination_by | decreasing_by | deriving ) } {#1}
           {
-            \tl_if_blank:nTF {##1}
-              { \bool_set_false:N \l__leandecl_inside_bool }
-              { \__leandecl_write:n {##1} }
+            \seq_map_inline:Nn \l__leandecl_blank_seq { \__leandecl_write:n { } }
+            \seq_clear:N \l__leandecl_blank_seq
+            \__leandecl_write:n {#1}
+            \bool_set_true:N \l__leandecl_consumed_bool
           }
           {
-            \regex_match:nnT
-              { \A (private\s+|protected\s+|noncomputable\s+)*
-                   (def|theorem|lemma|abbrev|structure|inductive|instance|class|axiom)
-                   \s+ \u{l__leandecl_name_str} (\s|\Z) }
-              {##1}
+            \bool_set_false:N \l__leandecl_inside_bool
+            \seq_clear:N \l__leandecl_blank_seq
+          }
+      }
+  }
+\cs_new_protected:Npn \__leandecl_src_outside:n #1
+  {
+    \bool_if:NTF \l__leandecl_indoc_bool
+      {
+        \seq_put_right:Nn \l__leandecl_doc_seq {#1}
+        \regex_match:nnT { -/ } {#1} { \bool_set_false:N \l__leandecl_indoc_bool }
+      }
+      {
+        \regex_match:nnTF { \A /-- } {#1}
+          {
+            \seq_clear:N \l__leandecl_doc_seq
+            \seq_clear:N \l__leandecl_attr_seq
+            \seq_put_right:Nn \l__leandecl_doc_seq {#1}
+            \regex_match:nnF { \A /-- .* -/ } {#1} { \bool_set_true:N \l__leandecl_indoc_bool }
+          }
+          {
+            \regex_match:nnTF
+              { \A (@\[ [^\]]* \] \s*)?
+                   ((private|protected|noncomputable|partial|unsafe|nonrec) \s+)*
+                   (def|theorem|lemma|abbrev|structure|inductive|instance|class|axiom|opaque)
+                   \s+ (\S*\.)? \u{l__leandecl_name_str} (\s|:|\Z) }
+              {#1}
               {
                 \int_incr:N \l__leandecl_matches_int
                 \bool_if:NF \l__leandecl_found_bool
                   {
-                    \bool_set_true:N \l__leandecl_inside_bool
                     \bool_set_true:N \l__leandecl_found_bool
-                    \__leandecl_write:n {##1}
+                    \bool_set_true:N \l__leandecl_inside_bool
+                    \bool_if:NT \l_leandecl_doc_bool
+                      { \seq_map_inline:Nn \l__leandecl_doc_seq { \__leandecl_write:n {##1} } }
+                    \seq_map_inline:Nn \l__leandecl_attr_seq { \__leandecl_write:n {##1} }
+                    \__leandecl_write:n {#1}
+                  }
+              }
+              {
+                \regex_match:nnTF { \A @\[ } {#1}
+                  { \seq_put_right:Nn \l__leandecl_attr_seq {#1} }
+                  {
+                    \regex_match:nnF { \A \s* \Z } {#1}
+                      {
+                        \seq_clear:N \l__leandecl_doc_seq
+                        \seq_clear:N \l__leandecl_attr_seq
+                      }
                   }
               }
           }
       }
+  }
+\cs_new_protected:Npn \__leandecl_from_source:n #1
+  {
+    \bool_set_false:N \l__leandecl_inside_bool
+    \bool_set_false:N \l__leandecl_found_bool
+    \bool_set_false:N \l__leandecl_indoc_bool
+    \int_zero:N \l__leandecl_matches_int
+    \seq_clear:N \l__leandecl_doc_seq
+    \seq_clear:N \l__leandecl_attr_seq
+    \seq_clear:N \l__leandecl_blank_seq
+    \ior_open:Nn \g__leandecl_ior {#1}
+    \ior_str_map_inline:Nn \g__leandecl_ior
+      {
+        \bool_set_false:N \l__leandecl_consumed_bool
+        \bool_if:NT \l__leandecl_inside_bool { \__leandecl_src_inside:n {##1} }
+        \bool_if:NF \l__leandecl_consumed_bool { \__leandecl_src_outside:n {##1} }
+      }
     \ior_close:N \g__leandecl_ior
+  }
+
+% Compare modification dates of a `.lean` file and its compiled `.olean` (once per file per run).
+\RequirePackage{pdftexcmds}
+\str_new:N \l__leandecl_olean_str
+\cs_new_protected:Npn \__leandecl_check_compiled:nn #1#2
+  {% #1 = source path as read, #2 = path relative to the Lake project root
+    \prop_if_in:NnF \g__leandecl_checked_prop {#1}
+      {
+        \prop_gput:Nnn \g__leandecl_checked_prop {#1} { }
+        \tl_if_blank:VTF \l_leandecl_olean_tl
+          {
+            \str_set:Ne \l__leandecl_olean_str
+              { \l_leandecl_project_tl .lake/build/lib/lean/ \str_range:nnn {#2} {1} {-6} .olean }
+          }
+          { \str_set:NV \l__leandecl_olean_str \l_leandecl_olean_tl }
+        \file_if_exist:VTF \l__leandecl_olean_str
+          {
+            \str_compare:eNeT
+              { \str_range:enn { \use:c { pdf@filemoddate } {#1} } {3} {16} }
+              >
+              { \str_range:enn { \use:c { pdf@filemoddate } { \l__leandecl_olean_str } } {3} {16} }
+              { \msg_warning:nnnV { leandecl } { uncompiled } {#1} \l__leandecl_olean_str }
+          }
+          { \msg_info:nnnV { leandecl } { no-olean } {#1} \l__leandecl_olean_str }
+      }
   }
 
 % ---------------------------------------------------------------- freshness check
@@ -191,14 +291,19 @@
 % ---------------------------------------------------------------- main command
 \cs_new_protected:Npn \__leandecl_typeset:nn #1#2
   {
-    \file_if_exist:nF {#1} { \msg_error:nnn { leandecl } { no-file } {#1} }
     \str_set:Nn \l__leandecl_file_str {#1}
+    \str_if_eq:eeT { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
+      { \str_set:Ne \l__leandecl_file_str { \l_leandecl_project_tl #1 } }
+    \file_if_exist:VF \l__leandecl_file_str
+      { \msg_error:nnV { leandecl } { no-file } \l__leandecl_file_str }
     \bool_lazy_and:nnT
       { \l_leandecl_check_bool }
       { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-9} {-1} } { .leandecl } }
       { \__leandecl_check:n {#1} }
-    \bool_if:nT { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean } }
-      { \msg_info:nnn { leandecl } { heuristic } {#1} }
+    \bool_lazy_and:nnT
+      { \l_leandecl_check_bool }
+      { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean } }
+      { \exp_args:NV \__leandecl_check_compiled:nn \l__leandecl_file_str {#1} }
     \int_gincr:N \g__leandecl_count_int
     \str_set:Ne \l__leandecl_out_str
       { \c_sys_jobname_str -leandecl- \int_use:N \g__leandecl_count_int .lean }
@@ -212,10 +317,10 @@
         \bool_if:NF \l__leandecl_first_bool { \__leandecl_write:n { } }
         \bool_set_false:N \l__leandecl_first_bool
         \str_if_eq:eeTF { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
-          { \__leandecl_from_source:n {#1} }
+          { \exp_args:NV \__leandecl_from_source:n \l__leandecl_file_str }
           { \__leandecl_from_export:n {#1} }
         \bool_if:NF \l__leandecl_found_bool
-          { \msg_error:nnVn { leandecl } { not-found } \l__leandecl_name_str {#1} }
+          { \msg_error:nnVV { leandecl } { not-found } \l__leandecl_name_str \l__leandecl_file_str }
         \int_compare:nNnT { \l__leandecl_matches_int } > { 1 }
           { \msg_warning:nnVn { leandecl } { ambiguous } \l__leandecl_name_str {#1} }
       }
