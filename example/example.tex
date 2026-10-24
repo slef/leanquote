@@ -1,0 +1,27 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{leandecl}
+\leandeclsetup{logo=lean-logo.pdf}
+\begin{document}
+\section*{leandecl example: 3D translational tiling}
+
+A \emph{prototile} is a finite list of points of $\mathbb{Z}^3$:
+\leandecl{Abstract.leandecl}{Point, Prototile}
+
+Two points are \emph{adjacent} if their $\ell^1$ distance is $1$, and a prototile is
+\emph{connected} if any two of its points are joined by a path of adjacent points:
+\leandecl{Abstract.leandecl}{Adjacent, Connected}
+
+$P$ \emph{tiles} $\mathbb{Z}^3$ if some set $T$ of translations puts every point in exactly
+one translate $t + P$. Here with its doc comment:
+\leandecl[doc]{Abstract.leandecl}{Tiles}
+
+\textbf{Theorem.} Tiling $\mathbb{Z}^3$ with a connected prototile is co-RE-complete,
+and hence undecidable:
+\leandecl{Abstract.leandecl}{tiling_coRE_complete, TranslationTiling.Abstract.tiling_undecidable}
+
+The same, read directly from the \texttt{.lean} file (boundaries guessed, no box):
+\leandecl[box=false]{TranslationTiling/Abstract.lean}{Solid}
+\end{document}

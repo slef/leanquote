@@ -1,0 +1,284 @@
+% leandecl.sty -- typeset Lean declarations by name, copied verbatim from Lean sources.
+%
+%   \leandecl[options]{file}{Name1, Name2, ...}
+%
+% `file` is either a `.leandecl` export written by `leandecl-export` (recommended: exact
+% declaration boundaries from the compiled module, and a warning if the `.lean` source has
+% changed since), or a `.lean` file (a declaration then runs from its `def`/`theorem`/... line to
+% the next blank line). Names may be short (`Tiles`) or fully qualified
+% (`TranslationTiling.Abstract.Tiles`). All requested declarations go into one listing.
+%
+% Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesExplPackage{leandecl}{2026-10-25}{0.1}{Typeset Lean declarations by name}
+\RequirePackage{listings}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+
+% ---------------------------------------------------------------- options
+\tl_new:N \l__leandecl_lst_tl
+\keys_define:nn { leandecl }
+  {
+    root  .tl_set:N   = \l_leandecl_root_tl ,
+    root  .initial:n  = {} ,
+    doc   .bool_set:N = \l_leandecl_doc_bool ,
+    doc   .default:n  = true ,
+    doc   .initial:n  = false ,
+    style .tl_set:N   = \l_leandecl_style_tl ,
+    style .initial:n  = leandecl ,
+    box   .bool_set:N = \l_leandecl_box_bool ,
+    box   .default:n  = true ,
+    box   .initial:n  = true ,
+    logo  .tl_set:N   = \l_leandecl_logo_tl ,
+    logo  .initial:n  = {} ,
+    check .bool_set:N = \l_leandecl_check_bool ,
+    check .default:n  = true ,
+    check .initial:n  = true ,
+    unknown .code:n   =
+      \tl_put_right:Nx \l__leandecl_lst_tl
+        { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
+  }
+\NewDocumentCommand \leandeclsetup { m } { \keys_set:nn { leandecl } {#1} }
+
+% ---------------------------------------------------------------- messages
+\msg_new:nnn { leandecl } { not-found }
+  { Lean~declaration~`#1'~not~found~in~#2. }
+\msg_new:nnn { leandecl } { ambiguous }
+  { Lean~name~`#1'~matches~several~declarations~in~#2;~using~the~first.~
+    Use~a~fully~qualified~name. }
+\msg_new:nnn { leandecl } { no-file }
+  { File~`#1'~not~found. }
+\msg_new:nnn { leandecl } { stale }
+  { #1~has~changed~since~#2~was~exported.~The~code~shown~may~be~out~of~date:~
+    rebuild~and~run~leandecl-export~again. }
+\msg_new:nnn { leandecl } { heuristic }
+  { Reading~#1~directly:~declaration~boundaries~are~guessed~(up~to~the~next~blank~line).~
+    Use~leandecl-export~for~exact~boundaries. }
+
+% ---------------------------------------------------------------- state
+\ior_new:N \g__leandecl_ior
+\iow_new:N \g__leandecl_iow
+\int_new:N \g__leandecl_count_int
+\str_new:N \l__leandecl_name_str
+\str_new:N \l__leandecl_file_str
+\str_new:N \l__leandecl_out_str
+\bool_new:N \l__leandecl_inside_bool
+\bool_new:N \l__leandecl_found_bool
+\bool_new:N \l__leandecl_first_bool
+\int_new:N \l__leandecl_matches_int
+\prop_new:N \g__leandecl_checked_prop
+
+% Write one line to the output file.
+\cs_new_protected:Npn \__leandecl_write:n #1 { \iow_now:Nn \g__leandecl_iow {#1} }
+
+% ---------------------------------------------------------------- .leandecl exports
+\cs_new_protected:Npn \__leandecl_from_export:n #1
+  {
+    \bool_set_false:N \l__leandecl_inside_bool
+    \bool_set_false:N \l__leandecl_found_bool
+    \int_zero:N \l__leandecl_matches_int
+    \ior_open:Nn \g__leandecl_ior {#1}
+    \ior_str_map_inline:Nn \g__leandecl_ior
+      {
+        \bool_if:NTF \l__leandecl_inside_bool
+          {
+            \str_if_eq:nnTF {##1} { @@end }
+              { \bool_set_false:N \l__leandecl_inside_bool }
+              {
+                \regex_match:nnTF { \A @@doc\x{20} } {##1}
+                  {
+                    \bool_if:NT \l_leandecl_doc_bool
+                      { \iow_now:Ne \g__leandecl_iow { \str_range:nnn {##1} {7} {-1} } }
+                  }
+                  { \__leandecl_write:n {##1} }
+              }
+          }
+          {
+            \regex_match:nnT { \A @@begin\x{20} (.*\.)? \u{l__leandecl_name_str} \Z } {##1}
+              {
+                \int_incr:N \l__leandecl_matches_int
+                \bool_if:NF \l__leandecl_found_bool
+                  {
+                    \bool_set_true:N \l__leandecl_inside_bool
+                    \bool_set_true:N \l__leandecl_found_bool
+                  }
+              }
+          }
+      }
+    \ior_close:N \g__leandecl_ior
+  }
+
+% ---------------------------------------------------------------- raw .lean files
+\cs_new_protected:Npn \__leandecl_from_source:n #1
+  {
+    \bool_set_false:N \l__leandecl_inside_bool
+    \bool_set_false:N \l__leandecl_found_bool
+    \int_zero:N \l__leandecl_matches_int
+    \ior_open:Nn \g__leandecl_ior {#1}
+    \ior_str_map_inline:Nn \g__leandecl_ior
+      {
+        \bool_if:NTF \l__leandecl_inside_bool
+          {
+            \tl_if_blank:nTF {##1}
+              { \bool_set_false:N \l__leandecl_inside_bool }
+              { \__leandecl_write:n {##1} }
+          }
+          {
+            \regex_match:nnT
+              { \A (private\s+|protected\s+|noncomputable\s+)*
+                   (def|theorem|lemma|abbrev|structure|inductive|instance|class|axiom)
+                   \s+ \u{l__leandecl_name_str} (\s|\Z) }
+              {##1}
+              {
+                \int_incr:N \l__leandecl_matches_int
+                \bool_if:NF \l__leandecl_found_bool
+                  {
+                    \bool_set_true:N \l__leandecl_inside_bool
+                    \bool_set_true:N \l__leandecl_found_bool
+                    \__leandecl_write:n {##1}
+                  }
+              }
+          }
+      }
+    \ior_close:N \g__leandecl_ior
+  }
+
+% ---------------------------------------------------------------- freshness check
+% Compare the source text stored in an export (`@@src` lines) with the current source file,
+% found at `root` + the `@@source` path. Done once per export per run.
+\str_new:N \l__leandecl_stored_str
+\str_new:N \l__leandecl_current_str
+\str_new:N \l__leandecl_srcpath_str
+\cs_new_protected:Npn \__leandecl_check:n #1
+  {
+    \prop_if_in:NnF \g__leandecl_checked_prop {#1}
+      {
+        \prop_gput:Nnn \g__leandecl_checked_prop {#1} { }
+        \str_clear:N \l__leandecl_stored_str
+        \str_clear:N \l__leandecl_srcpath_str
+        \ior_open:Nn \g__leandecl_ior {#1}
+        \ior_str_map_inline:Nn \g__leandecl_ior
+          {
+            \regex_match:nnT { \A @@src\x{20} } {##1}
+              { \str_put_right:Ne \l__leandecl_stored_str { \str_range:nnn {##1} {7} {-1} | } }
+            \regex_match:nnT { \A @@src \Z } {##1}
+              { \str_put_right:Nn \l__leandecl_stored_str { | } }
+            \regex_match:nnT { \A @@source\x{20} } {##1}
+              { \str_set:Ne \l__leandecl_srcpath_str { \l_leandecl_root_tl \str_range:nnn {##1} {10} {-1} } }
+          }
+        \ior_close:N \g__leandecl_ior
+        \file_if_exist:nT { \l__leandecl_srcpath_str }
+          {
+            \str_clear:N \l__leandecl_current_str
+            \ior_open:Nn \g__leandecl_ior { \l__leandecl_srcpath_str }
+            \ior_str_map_inline:Nn \g__leandecl_ior
+              { \str_put_right:Nn \l__leandecl_current_str { ##1 | } }
+            \ior_close:N \g__leandecl_ior
+            \str_if_eq:NNF \l__leandecl_stored_str \l__leandecl_current_str
+              { \msg_warning:nnVn { leandecl } { stale } \l__leandecl_srcpath_str {#1} }
+          }
+      }
+  }
+
+% ---------------------------------------------------------------- main command
+\cs_new_protected:Npn \__leandecl_typeset:nn #1#2
+  {
+    \file_if_exist:nF {#1} { \msg_error:nnn { leandecl } { no-file } {#1} }
+    \str_set:Nn \l__leandecl_file_str {#1}
+    \bool_lazy_and:nnT
+      { \l_leandecl_check_bool }
+      { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-9} {-1} } { .leandecl } }
+      { \__leandecl_check:n {#1} }
+    \bool_if:nT { \str_if_eq_p:ee { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean } }
+      { \msg_info:nnn { leandecl } { heuristic } {#1} }
+    \int_gincr:N \g__leandecl_count_int
+    \str_set:Ne \l__leandecl_out_str
+      { \c_sys_jobname_str -leandecl- \int_use:N \g__leandecl_count_int .lean }
+    \iow_open:Nn \g__leandecl_iow { \l__leandecl_out_str }
+    \bool_set_true:N \l__leandecl_first_bool
+    \clist_map_inline:nn {#2}
+      {
+        \str_set:Ne \l__leandecl_name_str { \tl_trim_spaces:n {##1} }
+        \bool_if:NF \l__leandecl_first_bool { \__leandecl_write:n { } }
+        \bool_set_false:N \l__leandecl_first_bool
+        \str_if_eq:eeTF { \str_range:Nnn \l__leandecl_file_str {-5} {-1} } { .lean }
+          { \__leandecl_from_source:n {#1} }
+          { \__leandecl_from_export:n {#1} }
+        \bool_if:NF \l__leandecl_found_bool
+          { \msg_error:nnVn { leandecl } { not-found } \l__leandecl_name_str {#1} }
+        \int_compare:nNnT { \l__leandecl_matches_int } > { 1 }
+          { \msg_warning:nnVn { leandecl } { ambiguous } \l__leandecl_name_str {#1} }
+      }
+    \iow_close:N \g__leandecl_iow
+    \bool_if:NT \l_leandecl_box_bool { \begin{leandeclbox} }
+    \use:e
+      {
+        \exp_not:N \lstinputlisting
+          [ style = \l_leandecl_style_tl \exp_not:V \l__leandecl_lst_tl ]
+          { \l__leandecl_out_str }
+      }
+    \bool_if:NT \l_leandecl_box_bool { \end{leandeclbox} }
+  }
+\NewDocumentCommand \leandecl { O{} m m }
+  {
+    \group_begin:
+      \tl_clear:N \l__leandecl_lst_tl
+      \keys_set:nn { leandecl } {#1}
+      \__leandecl_typeset:nn {#2} {#3}
+    \group_end:
+  }
+
+% ---------------------------------------------------------------- box
+\newtcolorbox{leandeclbox}{breakable, enhanced, colback=black!3, colframe=black!45,
+  boxrule=0.5pt, arc=2pt, left=6pt, right=6pt, top=3pt, bottom=3pt,
+  overlay~unbroken~and~first={
+    \tl_if_blank:VF \l_leandecl_logo_tl
+      {
+        \node[anchor=north~east, inner~sep=3pt, draw=black!45, fill=white,
+          line~width=0.5pt, rounded~corners=2pt] at (frame.north~east)
+          { \includegraphics[height=1.6ex]{\l_leandecl_logo_tl} } ;
+      }
+  }}
+
+\ExplSyntaxOff
+% ---------------------------------------------------------------- listings style
+\lstdefinelanguage{lean4}{
+  morekeywords={def,theorem,lemma,abbrev,structure,inductive,instance,class,where,fun,
+    by,have,show,from,let,in,if,then,else,match,with,do,return,namespace,end,section,
+    variable,open,import,noncomputable,private,protected,example,axiom,deriving,calc},
+  morekeywords=[2]{Prop,Type,Sort},
+  sensitive=true, morecomment=[l]{--}, morecomment=[n]{/-}{-/}, morestring=[b]"}
+\definecolor{leandeclkeyword}{RGB}{41,110,166}
+\definecolor{leandecltype}{RGB}{38,128,89}
+\lstdefinestyle{leandecl}{language=lean4, basicstyle=\ttfamily\small, columns=fullflexible,
+  keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
+  keywordstyle=\bfseries\color{leandeclkeyword}, keywordstyle=[2]\color{leandecltype},
+  commentstyle=\itshape\color{black!60},
+  breaklines=true, breakatwhitespace=true, postbreak=\mbox{\hspace{1em}},
+  literate=
+    {ℕ}{{$\mathbb{N}$}}1 {ℤ}{{$\mathbb{Z}$}}1 {ℚ}{{$\mathbb{Q}$}}1 {ℝ}{{$\mathbb{R}$}}1
+    {ℂ}{{$\mathbb{C}$}}1 {→}{{$\to$}}1 {←}{{$\leftarrow$}}1 {↔}{{$\leftrightarrow$}}1
+    {↦}{{$\mapsto$}}1 {⇒}{{$\Rightarrow$}}1 {∀}{{$\forall$}}1 {∃}{{$\exists$}}1
+    {¬}{{$\neg$}}1 {∧}{{$\wedge$}}1 {∨}{{$\vee$}}1 {≠}{{$\neq$}}1 {≤}{{$\le$}}1
+    {≥}{{$\ge$}}1 {≈}{{$\approx$}}1 {≡}{{$\equiv$}}1 {∈}{{$\in$}}1 {∉}{{$\notin$}}1
+    {⊆}{{$\subseteq$}}1 {⊂}{{$\subset$}}1 {∪}{{$\cup$}}1 {∩}{{$\cap$}}1
+    {⋃}{{$\bigcup$}}1 {⋂}{{$\bigcap$}}1 {∅}{{$\emptyset$}}1 {∑}{{$\sum$}}1
+    {∏}{{$\prod$}}1 {∫}{{$\int$}}1 {∂}{{$\partial$}}1 {∘}{{$\circ$}}1 {×}{{$\times$}}1
+    {·}{{$\cdot$}}1 {•}{{$\bullet$}}1 {√}{{$\surd$}}1 {∞}{{$\infty$}}1 {⊤}{{$\top$}}1
+    {⊥}{{$\bot$}}1 {≃}{{$\simeq$}}1 {≅}{{$\cong$}}1 {∣}{{$\mid$}}1 {‖}{{$\|$}}1
+    {⟨}{{$\langle$}}1 {⟩}{{$\rangle$}}1 {⦃}{{$\{\!|$}}1 {⦄}{{$|\!\}$}}1
+    {⨅}{{$\bigwedge$}}1 {⨆}{{$\bigvee$}}1
+    {α}{{$\alpha$}}1 {β}{{$\beta$}}1 {γ}{{$\gamma$}}1 {δ}{{$\delta$}}1 {ε}{{$\varepsilon$}}1
+    {ζ}{{$\zeta$}}1 {η}{{$\eta$}}1 {θ}{{$\theta$}}1 {ι}{{$\iota$}}1 {κ}{{$\kappa$}}1
+    {λ}{{$\lambda$}}1 {μ}{{$\mu$}}1 {ν}{{$\nu$}}1 {ξ}{{$\xi$}}1 {π}{{$\pi$}}1 {ρ}{{$\rho$}}1
+    {σ}{{$\sigma$}}1 {τ}{{$\tau$}}1 {φ}{{$\varphi$}}1 {χ}{{$\chi$}}1 {ψ}{{$\psi$}}1
+    {ω}{{$\omega$}}1 {Γ}{{$\Gamma$}}1 {Δ}{{$\Delta$}}1 {Θ}{{$\Theta$}}1 {Λ}{{$\Lambda$}}1
+    {Σ}{{$\Sigma$}}1 {Π}{{$\Pi$}}1 {Φ}{{$\Phi$}}1 {Ψ}{{$\Psi$}}1 {Ω}{{$\Omega$}}1
+    {₀}{{$_0$}}1 {₁}{{$_1$}}1 {₂}{{$_2$}}1 {₃}{{$_3$}}1 {₄}{{$_4$}}1 {₅}{{$_5$}}1
+    {₆}{{$_6$}}1 {₇}{{$_7$}}1 {₈}{{$_8$}}1 {₉}{{$_9$}}1 {ᵢ}{{$_i$}}1 {ⱼ}{{$_j$}}1
+    {⁰}{{$^0$}}1 {¹}{{$^1$}}1 {²}{{$^2$}}1 {³}{{$^3$}}1 {⁴}{{$^4$}}1 {⁵}{{$^5$}}1
+    {⁶}{{$^6$}}1 {⁷}{{$^7$}}1 {⁸}{{$^8$}}1 {⁹}{{$^9$}}1 {⁻}{{$^-$}}1 {ⁿ}{{$^n$}}1
+    {ᶜ}{{$^c$}}1 {ᶠ}{{$^{\mathsf f}$}}1 {ᵐ}{{$^{\mathrm m}$}}1 {ℓ}{{$\ell$}}1
+}

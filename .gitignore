@@ -1,0 +1,7 @@
+*.aux
+*.log
+*.out
+*.pdf
+!example/lean-logo.pdf
+*-leandecl-*.lean
+.DS_Store

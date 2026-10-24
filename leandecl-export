@@ -1,0 +1,12 @@
+#!/bin/sh
+# Build a Lean module and export its declarations for the leandecl LaTeX package.
+# Usage (from the root of the Lake project):  leandecl-export MODULE [OUTPUT.leandecl]
+# Example: leandecl-export TranslationTiling.Abstract ../paper/Abstract.leandecl
+set -eu
+module=$1
+src=$(echo "$module" | tr . /).lean
+[ -f "$src" ] || src=$(find . -path ./.lake -prune -o -path "*/$(echo "$module" | tr . /).lean" -print | head -1)
+out=${2:-$(basename "$src" .lean).leandecl}
+here=$(cd "$(dirname "$0")" && pwd)
+lake build "$module"
+lake env lean --run "$here/lean/LeanDeclExport.lean" "$module" "$src" "$out"
