@@ -1,18 +1,14 @@
 #!/bin/sh
 # Optional: build Lean modules and export their declarations for the leanquote LaTeX package.
 # Usage (from the root of the Lake project):  leanquote-export MODULE [MODULE ...]
-# Writes .lake/build/leanquote/<path of the module>.leanquote, where \leanquote finds it
+# Writes .lake/build/leanquote/<actual source path>.leanquote, where \leanquote finds it
 # automatically (with project= set to this directory). Without an export, \leanquote reads the
 # .lean file directly; with one, it uses Lean's exact declaration boundaries.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
+# Native Windows Lean needs a native path when this script runs under Cygwin/MSYS.
+if command -v cygpath >/dev/null 2>&1; then here=$(cygpath -m "$here"); fi
+[ "$#" -gt 0 ] || { echo "usage: leanquote-export MODULE [MODULE ...]" >&2; exit 1; }
 for module in "$@"; do
-  rel=$(echo "$module" | tr . /).lean
-  src=$rel
-  [ -f "$src" ] || src=$(find . -path ./.lake -prune -o -path "*/$rel" -print | head -1 | sed 's|^\./||')
-  [ -n "$src" ] && [ -f "$src" ] || { echo "leanquote-export: no source file for $module" >&2; exit 1; }
-  out=.lake/build/leanquote/${src%.lean}.leanquote
-  mkdir -p "$(dirname "$out")"
-  lake build "$module"
-  lake env lean --run "$here/lean/LeanQuoteExport.lean" "$module" "$src" "$out"
+  lake env lean --run "$here/lean/LeanQuoteExport.lean" "$module"
 done
