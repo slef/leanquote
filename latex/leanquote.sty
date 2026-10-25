@@ -16,7 +16,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.7}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-25}{0.8}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -487,6 +487,14 @@
   }
 
 % ---------------------------------------------------------------- box
+% Printed after the logo image. The Lean trademark policy requires the Lean logo to be
+% accompanied by a small trademark symbol; redefine as empty for other logos.
+\definecolor{leanquotelogoblue}{HTML}{386EE0}
+\cs_new:Npn \leanquotelogomark
+  {
+    \raisebox { \dimexpr 1.6ex - \height \relax }
+      { \scalebox{0.65} { \textcolor{leanquotelogoblue} { \fontsize{5}{5} \fontfamily{cmss} \selectfont TM } } }
+  }
 % The badge shown on quotes that could not be checked against compiled Lean code.
 \cs_new:Npn \leanquoteunverifiedtext
   { \textcolor{red!75!black}{ \textsf{ \bfseries \scriptsize UNVERIFIED } } }
@@ -499,7 +507,7 @@
       {
         \node[anchor=north~east, inner~sep=3pt, draw=black!45, fill=white,
           line~width=0.5pt, rounded~corners=2pt] (leanquotelogo) at (frame.north~east)
-          { \includegraphics[height=1.6ex]{\l_leanquote_logo_tl} } ;
+          { \includegraphics[height=1.6ex]{\l_leanquote_logo_tl} \leanquotelogomark } ;
         \bool_if:NT \l__leanquote_unverified_bool
           {
             \node[anchor=north~east, inner~sep=3pt, fill=red!75!black, rounded~corners=2pt]

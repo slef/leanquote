@@ -19,7 +19,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.7, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.8, 2026-10-25\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -156,6 +156,12 @@ to turn off both the mark and the warning; the old name \opt{check} is also acce
 The mark's appearance can be changed by redefining \cs{leanquoteunverifiedbadge} (in the box)
 and \cs{leanquoteunverifiedtext} (without a box).
 
+\paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
+each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
+The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
+always be accompanied by a trademark symbol; for other logos, redefine
+\cs{leanquotelogomark} as empty. The Lean logo is not included in the package.
+
 \section{Optional: exact boundaries from Lean}
 
 For files laid out unusually, Lean itself can report where each declaration starts and ends.
@@ -254,7 +260,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.7 (2026-10-25)] \textsc{unverified} mark and \opt{verify} option; \cs{leanquotefile} and a safe \cs{leanfile}; listings language renamed \texttt{leanquote-lean}.
+\item[0.8 (2026-10-25)] Trademark mark after the logo (\cs{leanquotelogomark}).
+\item[0.7] \textsc{unverified} mark and \opt{verify} option; \cs{leanquotefile} and a safe \cs{leanfile}; listings language renamed \texttt{leanquote-lean}.
 \item[0.6] Timestamps compared with \LaTeX3's \verb|\file_compare_timestamp|; related tools.
 \item[0.5] Lua\LaTeX{} and Xe\LaTeX{} support; documentation.
 \item[0.4] Renamed from \textsf{leandecl}; \cs{leanfile} and \cs{leanquote}.
