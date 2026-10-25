@@ -149,9 +149,156 @@
 \seq_new:N \l__leanquote_buf_seq
 \cs_new_protected:Npn \__leanquote_write:n #1 { \seq_put_right:Nn \l__leanquote_buf_seq {#1} }
 
+% ---------------------------------------------------------------- lexical scanning
+% Mask comments and strings with spaces, keeping byte/character offsets into the original.
+% Block-comment nesting and escaped strings persist across lines. Consumers inspect the mask
+% for syntax and always write the untouched input. This is a source fallback, not a Lean parser.
+\str_new:N \l__leanquote_code_str
+\str_new:N \l__leanquote_char_str
+\str_new:N \l__leanquote_pair_str
+\str_new:N \l__leanquote_tail_str
+\str_new:N \l__leanquote_rawend_str
+\seq_new:N \l__leanquote_literal_seq
+\int_new:N \l__leanquote_comment_int
+\int_new:N \l__leanquote_scan_int
+\int_new:N \l__leanquote_length_int
+\bool_new:N \l__leanquote_string_bool
+\bool_new:N \l__leanquote_escape_bool
+\bool_new:N \l__leanquote_continuation_bool
+\bool_new:N \l__leanquote_string_continuation_bool
+\bool_new:N \l__leanquote_literal_bool
+\cs_new_protected:Npn \__leanquote_lex_reset:
+  {
+    \int_zero:N \l__leanquote_comment_int
+    \bool_set_false:N \l__leanquote_string_bool
+    \bool_set_false:N \l__leanquote_escape_bool
+    \str_clear:N \l__leanquote_rawend_str
+  }
+\cs_new_protected:Npn \__leanquote_mask_literal:
+  {
+    \int_set:Nn \l_tmpa_int { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } }
+    \str_put_right:Ne \l__leanquote_code_str
+      { \prg_replicate:nn { \l_tmpa_int } { \c_space_tl } }
+    \int_add:Nn \l__leanquote_scan_int { \l_tmpa_int - 1 }
+    \bool_set_true:N \l__leanquote_literal_bool
+  }
+\cs_new_protected:Npn \__leanquote_lex_code:N #1
+  {
+    \bool_set_false:N \l__leanquote_literal_bool
+    \str_case:Vn \l__leanquote_char_str
+      {
+        {"}
+          {
+            \bool_set_true:N \l__leanquote_string_bool
+            \bool_set_true:N \l__leanquote_literal_bool
+            \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
+          }
+        {r}
+          {
+            \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
+            \regex_extract_once:nVNTF { \A r (\x{23}*) " } \l__leanquote_tail_str \l__leanquote_literal_seq
+              {
+                \str_set:Ne \l__leanquote_rawend_str { " \seq_item:Nn \l__leanquote_literal_seq {2} }
+                \bool_set_true:N \l__leanquote_string_bool
+                \__leanquote_mask_literal:
+              }
+              { }
+          }
+        {'}
+          {
+            % An apostrophe in an identifier is not a character-literal opener.
+            \str_set:Ne \l__leanquote_tail_str { \str_item:Nn #1 { \l__leanquote_scan_int - 1 } }
+            \regex_match:nVT { \A [\s(\[\{,:=]? \Z } \l__leanquote_tail_str
+              {
+                \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
+                \regex_extract_once:nVNTF { \A ' (?: [^'\\]+ | \\ . ) ' }
+                  \l__leanquote_tail_str \l__leanquote_literal_seq
+                  { \__leanquote_mask_literal: } { }
+              }
+          }
+      }
+    \bool_if:NF \l__leanquote_literal_bool
+      { \str_put_right:NV \l__leanquote_code_str \l__leanquote_char_str }
+  }
+\cs_new_protected:Npn \__leanquote_mask_pair:
+  {
+    \str_put_right:Ne \l__leanquote_code_str { \c_space_tl \c_space_tl }
+    \int_incr:N \l__leanquote_scan_int
+  }
+\cs_new_protected:Npn \__leanquote_lex:N #1
+  {
+    \bool_set:Nn \l__leanquote_continuation_bool
+      { \int_compare_p:nNn { \l__leanquote_comment_int } > {0} || \l__leanquote_string_bool }
+    \bool_set_eq:NN \l__leanquote_string_continuation_bool \l__leanquote_string_bool
+    \str_clear:N \l__leanquote_code_str
+    \int_set:Nn \l__leanquote_length_int { \str_count:N #1 }
+    \int_set:Nn \l__leanquote_scan_int {1}
+    \int_while_do:nNnn { \l__leanquote_scan_int } < { \l__leanquote_length_int + 1 }
+      {
+        \str_set:Ne \l__leanquote_char_str { \str_item:Nn #1 { \l__leanquote_scan_int } }
+        \str_set:Ne \l__leanquote_pair_str
+          { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_scan_int + 1 } }
+        \int_compare:nNnTF { \l__leanquote_comment_int } > {0}
+          {
+            \str_case:VnF \l__leanquote_pair_str
+              {
+                {/-} { \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
+                {-/} { \int_decr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
+              }
+              { \str_put_right:Ne \l__leanquote_code_str { \c_space_tl } }
+          }
+          {
+            \bool_if:NTF \l__leanquote_string_bool
+              {
+                \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
+                \str_if_empty:NTF \l__leanquote_rawend_str
+                  {
+                    \bool_if:NTF \l__leanquote_escape_bool
+                      { \bool_set_false:N \l__leanquote_escape_bool }
+                      {
+                        \str_if_eq:VnTF \l__leanquote_char_str { " }
+                          { \bool_set_false:N \l__leanquote_string_bool }
+                          {
+                            \str_if_eq:eeT { \l__leanquote_char_str } { \c_backslash_str }
+                              { \bool_set_true:N \l__leanquote_escape_bool }
+                          }
+                      }
+                  }
+                  {
+                    \int_set:Nn \l_tmpa_int { \str_count:N \l__leanquote_rawend_str - 1 }
+                    \str_set:Ne \l__leanquote_tail_str
+                      { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_scan_int + \l_tmpa_int } }
+                    \str_if_eq:NNT \l__leanquote_tail_str \l__leanquote_rawend_str
+                      {
+                        \str_put_right:Ne \l__leanquote_code_str
+                          { \prg_replicate:nn { \l_tmpa_int } { \c_space_tl } }
+                        \int_add:Nn \l__leanquote_scan_int { \l_tmpa_int }
+                        \bool_set_false:N \l__leanquote_string_bool
+                        \str_clear:N \l__leanquote_rawend_str
+                      }
+                  }
+              }
+              {
+                \str_case:VnF \l__leanquote_pair_str
+                  {
+                    {/-} { \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
+                    {--}
+                      {
+                        \str_put_right:Ne \l__leanquote_code_str
+                          { \prg_replicate:nn { \l__leanquote_length_int - \l__leanquote_scan_int + 1 } { \c_space_tl } }
+                        \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_length_int
+                      }
+                  }
+                  { \__leanquote_lex_code:N #1 }
+              }
+          }
+        \int_incr:N \l__leanquote_scan_int
+      }
+  }
+
 % ---------------------------------------------------------------- hiding proofs (proof=false)
-% For a theorem or lemma, cut at the `:=` that starts the proof (outside brackets and `--`
-% comments) and print `:= ...` instead. Definitions keep their bodies.
+% The mask preserves offsets, so only the proof assignment outside brackets is replaced.
+% Definitions keep their bodies, including string and comment contents.
 \int_new:N \l__leanquote_depth_int
 \int_new:N \l__leanquote_pos_int
 \int_new:N \l__leanquote_cut_int
@@ -159,8 +306,21 @@
 \bool_new:N \l__leanquote_intheorem_bool
 \bool_new:N \l__leanquote_cutdone_bool
 \str_new:N \l__leanquote_line_str
+\cs_generate_variant:Nn \str_replace_all:Nnn { Nne }
+\cs_new_protected:Npn \__leanquote_proof_brackets:
+  {
+    % pdfTeX reads UTF-8 bytes; padding keeps source offsets equal on all engines.
+    \str_replace_all:Nne \l__leanquote_code_str { ⟨ }
+      { ( \prg_replicate:nn { \str_count:n {⟨} - 1 } { \c_space_tl } }
+    \str_replace_all:Nne \l__leanquote_code_str { ⦃ }
+      { ( \prg_replicate:nn { \str_count:n {⦃} - 1 } { \c_space_tl } }
+    \str_replace_all:Nne \l__leanquote_code_str { ⟩ }
+      { ) \prg_replicate:nn { \str_count:n {⟩} - 1 } { \c_space_tl } }
+    \str_replace_all:Nne \l__leanquote_code_str { ⦄ }
+      { ) \prg_replicate:nn { \str_count:n {⦄} - 1 } { \c_space_tl } }
+  }
 \cs_new_protected:Npn \__leanquote_find_cut:N #1
-  {% #1 = str variable holding one line; sets \l__leanquote_cut_int (0 = no cut in this line)
+  {
     \int_zero:N \l__leanquote_pos_int
     \int_zero:N \l__leanquote_cut_int
     \int_zero:N \l__leanquote_prev_int
@@ -169,28 +329,21 @@
         \int_incr:N \l__leanquote_pos_int
         \int_case:nn { `##1 }
           {
-            { 40 }    { \int_incr:N \l__leanquote_depth_int }   % (
-            { 91 }    { \int_incr:N \l__leanquote_depth_int }   % [
-            { 123 }   { \int_incr:N \l__leanquote_depth_int }   % {
-            { 10216 } { \int_incr:N \l__leanquote_depth_int }   % ⟨ (Unicode engines)
+            { 40 }    { \int_incr:N \l__leanquote_depth_int }
+            { 91 }    { \int_incr:N \l__leanquote_depth_int }
+            { 123 }   { \int_incr:N \l__leanquote_depth_int }
             { 41 }    { \int_decr:N \l__leanquote_depth_int }
             { 93 }    { \int_decr:N \l__leanquote_depth_int }
             { 125 }   { \int_decr:N \l__leanquote_depth_int }
-            { 10217 } { \int_decr:N \l__leanquote_depth_int }
-            { 61 }                                              % =
+            { 61 }
               {
                 \bool_lazy_and:nnT
                   { \int_compare_p:nNn { \l__leanquote_prev_int } = { 58 } }
-                  { \int_compare_p:nNn { \l__leanquote_depth_int } < { 1 } }
+                  { \int_compare_p:nNn { \l__leanquote_depth_int } = { 0 } }
                   {
                     \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 }
                     \str_map_break:
                   }
-              }
-            { 45 }                                              % -
-              {
-                \int_compare:nNnT { \l__leanquote_prev_int } = { 45 }
-                  { \str_map_break: }
               }
           }
         \int_set:Nn \l__leanquote_prev_int { `##1 }
@@ -204,23 +357,26 @@
         \bool_set_false:N \l__leanquote_intheorem_bool
         \bool_set_false:N \l__leanquote_cutdone_bool
         \int_zero:N \l__leanquote_depth_int
+        \__leanquote_lex_reset:
         \seq_map_inline:Nn \l__leanquote_buf_seq
           {
             \bool_if:NF \l__leanquote_cutdone_bool
               {
                 \str_set:Nn \l__leanquote_line_str {##1}
+                \__leanquote_lex:N \l__leanquote_line_str
                 \bool_if:NF \l__leanquote_intheorem_bool
                   {
-                    \regex_match:nnT
-                      { \A (?:@\[ [^\]]* \] \s*)?
-                           (?:(?:private|protected|noncomputable|nonrec) \s+)*
+                    \regex_match:nVT
+                      { \A (?:@\[ [^\]]* \] \s*)*
+                           (?:(?:public|private|protected|noncomputable|partial|unsafe|nonrec|meta) \s+)*
                            (?:theorem|lemma) \s }
-                      {##1}
+                      \l__leanquote_code_str
                       { \bool_set_true:N \l__leanquote_intheorem_bool }
                   }
                 \bool_if:NTF \l__leanquote_intheorem_bool
                   {
-                    \__leanquote_find_cut:N \l__leanquote_line_str
+                    \__leanquote_proof_brackets:
+                    \__leanquote_find_cut:N \l__leanquote_code_str
                     \int_compare:nNnTF { \l__leanquote_cut_int } > { 0 }
                       {
                         \tl_set:Ne \l_tmpa_tl
@@ -343,93 +499,143 @@
 \seq_new:N \l__leanquote_doc_seq
 \seq_new:N \l__leanquote_attr_seq
 \seq_new:N \l__leanquote_blank_seq
+\seq_new:N \l__leanquote_scope_seq
+\str_new:N \l__leanquote_namespace_str
 \bool_new:N \l__leanquote_indoc_bool
 \bool_new:N \l__leanquote_consumed_bool
 \cs_new_protected:Npn \__leanquote_src_inside:n #1
   {
-    \regex_match:nnTF { \A \s* \Z } {#1}
-      { \seq_put_right:Nn \l__leanquote_blank_seq { } \bool_set_true:N \l__leanquote_consumed_bool }
+    \bool_if:NTF \l__leanquote_string_continuation_bool
+      { \__leanquote_src_continue:n {#1} }
       {
-        \regex_match:nnTF { \A ( \s | \| | termination_by | decreasing_by | deriving ) } {#1}
+        \regex_match:nVTF { \A \s* \Z } \l__leanquote_code_str
+          { \seq_put_right:Nn \l__leanquote_blank_seq {#1} \bool_set_true:N \l__leanquote_consumed_bool }
           {
-            \seq_map_inline:Nn \l__leanquote_blank_seq { \__leanquote_write:n { } }
-            \seq_clear:N \l__leanquote_blank_seq
-            \__leanquote_write:n {#1}
-            \bool_set_true:N \l__leanquote_consumed_bool
-          }
-          {
-            \bool_set_false:N \l__leanquote_inside_bool
-            \seq_clear:N \l__leanquote_blank_seq
+            \bool_set_eq:NN \l__leanquote_consumed_bool \l__leanquote_continuation_bool
+            \regex_match:nnT { \A ( \s | \| | termination_by | decreasing_by | deriving ) } {#1}
+              { \bool_set_true:N \l__leanquote_consumed_bool }
+            \bool_if:NTF \l__leanquote_consumed_bool
+              { \__leanquote_src_continue:n {#1} }
+              {
+                \bool_set_false:N \l__leanquote_inside_bool
+                \seq_clear:N \l__leanquote_blank_seq
+              }
           }
       }
   }
+\cs_new_protected:Npn \__leanquote_src_continue:n #1
+  {
+    \seq_map_inline:Nn \l__leanquote_blank_seq { \__leanquote_write:n {##1} }
+    \seq_clear:N \l__leanquote_blank_seq
+    \__leanquote_write:n {#1}
+    \bool_set_true:N \l__leanquote_consumed_bool
+  }
 \seq_new:N \l__leanquote_decl_seq
 \str_new:N \l__leanquote_declname_str
-% Does the declared name match the requested one? Either may be a dotted suffix of the other.
+% Match the actual full name or a dotted suffix of it, never the reverse.
 \cs_generate_variant:Nn \regex_match:nnTF { nV }
+\cs_generate_variant:Nn \regex_match:nnF { nV }
 \prg_new_protected_conditional:Npnn \__leanquote_names_match: { TF }
   {
     \str_if_eq:NNTF \l__leanquote_declname_str \l__leanquote_name_str
       { \prg_return_true: }
       {
         \regex_match:nVTF { \. \u{l__leanquote_name_str} \Z } \l__leanquote_declname_str
-          { \prg_return_true: }
-          {
-            \regex_match:nVTF { \. \u{l__leanquote_declname_str} \Z } \l__leanquote_name_str
-              { \prg_return_true: } { \prg_return_false: }
-          }
+          { \prg_return_true: } { \prg_return_false: }
       }
   }
 \cs_new_protected:Npn \__leanquote_src_start:n #1
   {
-                \int_incr:N \l__leanquote_matches_int
-                \bool_if:NF \l__leanquote_found_bool
-                  {
-                    \bool_set_true:N \l__leanquote_found_bool
-                    \bool_set_true:N \l__leanquote_inside_bool
-                    \bool_if:NT \l_leanquote_doc_bool
-                      { \seq_map_inline:Nn \l__leanquote_doc_seq { \__leanquote_write:n {##1} } }
-                    \seq_map_inline:Nn \l__leanquote_attr_seq { \__leanquote_write:n {##1} }
-                    \__leanquote_write:n {#1}
-                  }
-              }
+    \int_incr:N \l__leanquote_matches_int
+    \bool_if:NF \l__leanquote_found_bool
+      {
+        \bool_set_true:N \l__leanquote_found_bool
+        \bool_set_true:N \l__leanquote_inside_bool
+        \bool_if:NT \l_leanquote_doc_bool
+          { \seq_map_inline:Nn \l__leanquote_doc_seq { \__leanquote_write:n {##1} } }
+        \seq_map_inline:Nn \l__leanquote_attr_seq { \__leanquote_write:n {##1} }
+        \__leanquote_write:n {#1}
+      }
+  }
 \cs_new_protected:Npn \__leanquote_src_other:n #1
   {
-                \regex_match:nnTF { \A @\[ } {#1}
-                  { \seq_put_right:Nn \l__leanquote_attr_seq {#1} }
-                  {
-                    \regex_match:nnF { \A \s* \Z } {#1}
-                      {
-                        \seq_clear:N \l__leanquote_doc_seq
-                        \seq_clear:N \l__leanquote_attr_seq
-                      }
-                  }
+    % An inline attribute and unrelated declaration must not attach to the next one.
+    \regex_match:nVTF { \A (?: @\[ [^\]]* \] \s* )+ \Z } \l__leanquote_code_str
+      { \seq_put_right:Nn \l__leanquote_attr_seq {#1} }
+      {
+        \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
+          {
+            \seq_clear:N \l__leanquote_doc_seq
+            \seq_clear:N \l__leanquote_attr_seq
+          }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_scope:
+  {
+    \regex_extract_once:nVNTF { \A namespace \s+ (\S+) } \l__leanquote_code_str \l__leanquote_decl_seq
+      {
+        \seq_put_right:NV \l__leanquote_scope_seq \l__leanquote_namespace_str
+        \str_set:Ne \l__leanquote_namespace_str
+          {
+            \str_if_empty:NF \l__leanquote_namespace_str { \l__leanquote_namespace_str . }
+            \seq_item:Nn \l__leanquote_decl_seq {2}
+          }
+      }
+      {
+        \regex_match:nVTF
+          { \A (?: (?:@\[ expose \] \s*)? (?:(?:public|noncomputable|meta) \s+)* section | mutual ) (?:\s|\Z) }
+          \l__leanquote_code_str
+          { \seq_put_right:NV \l__leanquote_scope_seq \l__leanquote_namespace_str }
+          {
+            \regex_match:nVT { \A end (?:\s|\Z) } \l__leanquote_code_str
+              {
+                \seq_if_empty:NF \l__leanquote_scope_seq
+                  { \seq_pop_right:NN \l__leanquote_scope_seq \l__leanquote_namespace_str }
               }
+          }
+      }
+  }
+\cs_generate_variant:Nn \regex_extract_once:nnNTF { nV }
 \cs_new_protected:Npn \__leanquote_src_outside:n #1
   {
     \bool_if:NTF \l__leanquote_indoc_bool
       {
         \seq_put_right:Nn \l__leanquote_doc_seq {#1}
-        \regex_match:nnT { -/ } {#1} { \bool_set_false:N \l__leanquote_indoc_bool }
+        \int_compare:nNnT { \l__leanquote_comment_int } = {0}
+          { \bool_set_false:N \l__leanquote_indoc_bool }
       }
       {
-        \regex_match:nnTF { \A /-- } {#1}
+        \bool_set_false:N \l__leanquote_indoc_bool
+        \bool_if:NF \l__leanquote_continuation_bool
+          { \regex_match:nnT { \A /-- } {#1} { \bool_set_true:N \l__leanquote_indoc_bool } }
+        \bool_if:NTF \l__leanquote_indoc_bool
           {
             \seq_clear:N \l__leanquote_doc_seq
             \seq_clear:N \l__leanquote_attr_seq
             \seq_put_right:Nn \l__leanquote_doc_seq {#1}
-            \regex_match:nnF { \A /-- .* -/ } {#1} { \bool_set_true:N \l__leanquote_indoc_bool }
+            \int_compare:nNnT { \l__leanquote_comment_int } = {0}
+              { \bool_set_false:N \l__leanquote_indoc_bool }
           }
           {
-            \regex_extract_once:nnNTF
-              { \A (?:@\[ [^\]]* \] \s*)?
-                   (?:(?:private|protected|noncomputable|partial|unsafe|nonrec) \s+)*
+            \__leanquote_scope:
+            \regex_extract_once:nVNTF
+              { \A (?:@\[ [^\]]* \] \s*)*
+                   (?:(?:public|private|protected|noncomputable|partial|unsafe|nonrec|meta) \s+)*
                    (?:def|theorem|lemma|abbrev|structure|inductive|instance|class|axiom|opaque)
                    \s+ ([^\s:(\[\{]+) }
-              {#1} \l__leanquote_decl_seq
+              \l__leanquote_code_str \l__leanquote_decl_seq
               {
                 \str_set:Ne \l__leanquote_declname_str { \seq_item:Nn \l__leanquote_decl_seq {2} }
-                \__leanquote_names_match:TF { \__leanquote_src_start:n {#1} } { \__leanquote_src_other:n {#1} }
+                \regex_match:nVTF { \A _root_ \. } \l__leanquote_declname_str
+                  { \str_set:Ne \l__leanquote_declname_str { \str_range:Nnn \l__leanquote_declname_str {8} {-1} } }
+                  {
+                    \str_if_empty:NF \l__leanquote_namespace_str
+                      { \str_set:Ne \l__leanquote_declname_str { \l__leanquote_namespace_str . \l__leanquote_declname_str } }
+                  }
+                \__leanquote_names_match:TF { \__leanquote_src_start:n {#1} } { }
+                % Metadata belongs to this declaration even when it was not requested.
+                \seq_clear:N \l__leanquote_doc_seq
+                \seq_clear:N \l__leanquote_attr_seq
               }
               { \__leanquote_src_other:n {#1} }
 
@@ -437,44 +643,27 @@
       }
   }
 % ---------------------------------------------------------------- the import block
-% The `module` / `[public|private|meta] import` lines at the top of a file. A comment before them
-% (e.g. a copyright header) is skipped; the block ends at the first other non-blank line.
-\bool_new:N \l__leanquote_inheader_bool
-\bool_new:N \l__leanquote_incomment_bool
+% Skip nested comments throughout the header, including between import commands.
 \cs_new_protected:Npn \__leanquote_import_line:n #1
   {
-    \bool_if:NTF \l__leanquote_incomment_bool
-      { \regex_match:nnT { -/ } {#1} { \bool_set_false:N \l__leanquote_incomment_bool } }
+    \str_set:Nn \l__leanquote_line_str {#1}
+    \__leanquote_lex:N \l__leanquote_line_str
+    \regex_match:nVTF
+      { \A \s* (?: module \s* \Z | (?:(?:public|private|meta) \s+)* import \s+ \S ) }
+      \l__leanquote_code_str
       {
-        \regex_match:nnTF
-          { \A (?: module \s* \Z | (?:(?:public|private|meta) \s+)* import \s ) } {#1}
-          {
-            \bool_set_true:N \l__leanquote_found_bool
-            \bool_set_true:N \l__leanquote_inheader_bool
-            \__leanquote_write:n {#1}
-          }
-          {
-            \regex_match:nnF { \A \s* (?: \Z | -- ) } {#1}
-              {
-                \bool_if:NTF \l__leanquote_inheader_bool
-                  { \ior_map_break: }
-                  {
-                    \regex_match:nnTF { \A /- } {#1}
-                      {
-                        \regex_match:nnF { -/ } {#1}
-                          { \bool_set_true:N \l__leanquote_incomment_bool }
-                      }
-                      { \ior_map_break: }
-                  }
-              }
-          }
+        \bool_set_true:N \l__leanquote_found_bool
+        \__leanquote_write:n {#1}
+      }
+      {
+        \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
+          { \ior_map_break: }
       }
   }
 \cs_new_protected:Npn \__leanquote_imports:n #1
   {% #1 = .lean file, or export (its @@src lines)
     \bool_set_false:N \l__leanquote_found_bool
-    \bool_set_false:N \l__leanquote_inheader_bool
-    \bool_set_false:N \l__leanquote_incomment_bool
+    \__leanquote_lex_reset:
     \int_set:Nn \l__leanquote_matches_int { 1 }
     \ior_open:Nn \g__leanquote_ior {#1}
     \str_if_eq:eeTF { \str_range:nnn {#1} {-5} {-1} } { .lean }
@@ -498,6 +687,9 @@
     \bool_set_false:N \l__leanquote_found_bool
     \bool_set_false:N \l__leanquote_indoc_bool
     \int_zero:N \l__leanquote_matches_int
+    \__leanquote_lex_reset:
+    \str_clear:N \l__leanquote_namespace_str
+    \seq_clear:N \l__leanquote_scope_seq
     \seq_clear:N \l__leanquote_doc_seq
     \seq_clear:N \l__leanquote_attr_seq
     \seq_clear:N \l__leanquote_blank_seq
@@ -505,6 +697,8 @@
     \ior_str_map_inline:Nn \g__leanquote_ior
       {
         \bool_set_false:N \l__leanquote_consumed_bool
+        \str_set:Nn \l__leanquote_line_str {##1}
+        \__leanquote_lex:N \l__leanquote_line_str
         \bool_if:NT \l__leanquote_inside_bool { \__leanquote_src_inside:n {##1} }
         \bool_if:NF \l__leanquote_consumed_bool { \__leanquote_src_outside:n {##1} }
       }
