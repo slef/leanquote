@@ -83,7 +83,7 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 |---|---|---|
 | `doc` | false | also show each declaration's doc comment |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
-| `logo=<file>` | none | image shown in the box's top-right corner (e.g. the Lean logo) |
+| `logo=<file>` | none | image shown in the box's top-right corner, e.g. the Lean logo (not included; get it from the Lean project and check its usage terms) |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
@@ -160,4 +160,4 @@ working under the authors' direction.
 
 ## License
 
-MIT. The Lean logo in `example/` belongs to the Lean FRO and is not part of the CTAN archive.
+MIT.

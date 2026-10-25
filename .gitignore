@@ -2,7 +2,6 @@
 *.log
 *.out
 *.pdf
-!example/lean-logo.pdf
 *-leanquote-*.lean
 .DS_Store
 build/
