@@ -161,8 +161,10 @@ and v4.35.0 (exporter).
 
 ## Documentation
 
-`doc/leanquote-doc.pdf` is the manual. `./make-ctan.sh` rebuilds it and writes the CTAN
-archive `leanquote.zip`.
+The manual's source is `doc/leanquote-doc.tex`. Download the compiled PDF from
+[GitHub releases](https://github.com/slef/leanquote/releases), or run `./make-ctan.sh`
+in a Git checkout to build `doc/leanquote-doc.pdf` and the CTAN archive `leanquote.zip`.
+Generated PDFs are distributed as build/release assets rather than tracked in Git.
 
 From a Git checkout, run the API regression tests with `python3 tests/test_api.py` (requires pdfLaTeX).
 Set `LEANQUOTE_TEX_ENGINE=lualatex` or `LEANQUOTE_TEX_ENGINE=xelatex` to test another engine.

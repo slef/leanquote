@@ -10,4 +10,4 @@ doc/*.aux
 doc/*.log
 doc/*.out
 doc/*.toc
-!doc/leanquote-doc.pdf
+__pycache__/
