@@ -16,7 +16,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.9}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-25}{0.10}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -83,6 +83,17 @@
   { No~compiled~file~#2~for~#1,~so~leanquote~cannot~check~that~Lean~compiled~it~
     (verify=true:~the~quote~is~marked~UNVERIFIED).~Set~project~to~the~root~of~its~Lake~
     project~or~olean~to~the~compiled~file,~or~use~verify=auto. }
+\msg_new:nnn { leanquote } { failed }
+  { The~last~lake~build~of~#1~failed:~its~compiled~file~#2~is~missing~
+    (the~quote~is~marked~UNVERIFIED).~Fix~the~Lean~file~and~run~lake~build. }
+\msg_new:nnn { leanquote } { sorry-file }
+  { #1~contains~sorry,~according~to~Lake's~build~log~(quotes~from~it~are~marked~
+    SORRY~IN~FILE).~Run~leanquote-export~to~see~which~declarations~depend~on~it. }
+\msg_new:nnn { leanquote } { sorry-decl }
+  { Lean~declaration~#1~depends~on~sorry~(the~quote~is~marked~USES~SORRY). }
+\msg_new:nnn { leanquote } { extra-axioms }
+  { Lean~declaration~#1~depends~on~axioms~beyond~propext,~Classical.choice~and~
+    Quot.sound:~#2~(the~quote~is~marked~EXTRA~AXIOMS). }
 \msg_new:nnn { leanquote } { no-olean-auto }
   { No~compiled~file~#2~for~#1;~leanquote~cannot~check~it~here~(verify=auto). }
 
@@ -112,6 +123,29 @@
 \cs_new_protected:Npn \__leanquote_write:n #1 { \iow_now:Nn \g__leanquote_iow {#1} }
 
 % ---------------------------------------------------------------- .leanquote exports
+% `@@axioms a b c` line of an export: flag sorry and axioms beyond the standard three.
+\tl_new:N \l__leanquote_axlist_tl
+\tl_new:N \l__leanquote_extra_tl
+\cs_new_protected:Npn \__leanquote_axioms:n #1
+  {
+    \tl_set:Ne \l__leanquote_axlist_tl { \str_range:nnn {#1} {10} {-1} }
+    \regex_match:nVT { sorryAx } \l__leanquote_axlist_tl
+      {
+        \bool_set_true:N \l__leanquote_sorrydecl_bool
+        \msg_warning:nnV { leanquote } { sorry-decl } \l__leanquote_name_str
+      }
+    \tl_set_eq:NN \l__leanquote_extra_tl \l__leanquote_axlist_tl
+    \regex_replace_all:nnN { propext | Classical\.choice | Quot\.sound | sorryAx } { } \l__leanquote_extra_tl
+    \tl_trim_spaces:N \l__leanquote_extra_tl
+    \tl_if_blank:VF \l__leanquote_extra_tl
+      {
+        \bool_set_true:N \l__leanquote_axioms_bool
+        \msg_warning:nnVV { leanquote } { extra-axioms } \l__leanquote_name_str \l__leanquote_axlist_tl
+      }
+  }
+\cs_generate_variant:Nn \regex_match:nnT { nV }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_generate_variant:Nn \msg_warning:nnnn { nnVV }
 \cs_new_protected:Npn \__leanquote_from_export:n #1
   {
     \bool_set_false:N \l__leanquote_inside_bool
@@ -125,12 +159,16 @@
             \str_if_eq:nnTF {##1} { @@end }
               { \bool_set_false:N \l__leanquote_inside_bool }
               {
-                \regex_match:nnTF { \A @@doc\x{20} } {##1}
+                \regex_match:nnTF { \A @@axioms } {##1}
+                  { \bool_if:NT \l_leanquote_check_bool { \__leanquote_axioms:n {##1} } }
                   {
-                    \bool_if:NT \l_leanquote_doc_bool
-                      { \iow_now:Ne \g__leanquote_iow { \str_range:nnn {##1} {7} {-1} } }
+                    \regex_match:nnTF { \A @@doc\x{20} } {##1}
+                      {
+                        \bool_if:NT \l_leanquote_doc_bool
+                          { \iow_now:Ne \g__leanquote_iow { \str_range:nnn {##1} {7} {-1} } }
+                      }
+                      { \__leanquote_write:n {##1} }
                   }
-                  { \__leanquote_write:n {##1} }
               }
           }
           {
@@ -271,6 +309,12 @@
 \str_new:N \l__leanquote_olean_str
 \bool_new:N \l__leanquote_unverified_bool
 \tl_new:N \l__leanquote_status_tl
+\str_new:N \l__leanquote_trace_str
+\bool_new:N \l__leanquote_sorryfile_bool
+\bool_new:N \l__leanquote_sorrydecl_bool
+\bool_new:N \l__leanquote_axioms_bool
+\tl_new:N \l__leanquote_mark_tl
+\cs_generate_variant:Nn \ior_open:Nn { NV }
 \cs_new_protected:Npn \__leanquote_check_compiled:nn #1#2
   {% #1 = source path as read, #2 = path relative to the Lake project root
     % Status per file, computed once: s = stale (source newer than .olean), o = ok, n = no .olean.
@@ -282,6 +326,8 @@
               { \l_leanquote_project_tl .lake/build/lib/lean/ \str_range:nnn {#2} {1} {-6} .olean }
           }
           { \str_set:NV \l__leanquote_olean_str \l_leanquote_olean_tl }
+        \str_set:Ne \l__leanquote_trace_str
+          { \str_range:Nnn \l__leanquote_olean_str {1} {-7} .trace }
         \file_if_exist:VTF \l__leanquote_olean_str
           {
             \file_compare_timestamp:nNnTF {#1} > { \l__leanquote_olean_str }
@@ -289,19 +335,45 @@
                 \tl_set:Nn \l__leanquote_status_tl { s }
                 \msg_warning:nnnV { leanquote } { uncompiled } {#1} \l__leanquote_olean_str
               }
-              { \tl_set:Nn \l__leanquote_status_tl { o } }
+              {
+                \tl_set:Nn \l__leanquote_status_tl { o }
+                \file_if_exist:VT \l__leanquote_trace_str
+                  {
+                    \ior_open:NV \g__leanquote_ior \l__leanquote_trace_str
+                    \ior_str_map_inline:Nn \g__leanquote_ior
+                      {
+                        \regex_match:nnT { declaration\ uses\ \x{60}sorry\x{60} } {##1}
+                          {
+                            \tl_set:Nn \l__leanquote_status_tl { y }
+                            \ior_map_break:
+                          }
+                      }
+                    \ior_close:N \g__leanquote_ior
+                    \str_if_eq:VnT \l__leanquote_status_tl { y }
+                      { \msg_warning:nnn { leanquote } { sorry-file } {#1} }
+                  }
+              }
           }
           {
-            \tl_set:Nn \l__leanquote_status_tl { n }
-            \str_if_eq:VnTF \l_leanquote_verify_tl { true }
-              { \msg_warning:nnnV { leanquote } { no-olean } {#1} \l__leanquote_olean_str }
-              { \msg_info:nnnV { leanquote } { no-olean-auto } {#1} \l__leanquote_olean_str }
+            \file_if_exist:VTF \l__leanquote_trace_str
+              {
+                \tl_set:Nn \l__leanquote_status_tl { f }
+                \msg_warning:nnnV { leanquote } { failed } {#1} \l__leanquote_olean_str
+              }
+              {
+                \tl_set:Nn \l__leanquote_status_tl { n }
+                \str_if_eq:VnTF \l_leanquote_verify_tl { true }
+                  { \msg_warning:nnnV { leanquote } { no-olean } {#1} \l__leanquote_olean_str }
+                  { \msg_info:nnnV { leanquote } { no-olean-auto } {#1} \l__leanquote_olean_str }
+              }
           }
         \prop_gput:NnV \g__leanquote_checked_prop {#1} \l__leanquote_status_tl
       }
     \str_case:VnF \l__leanquote_status_tl
       {
         { s } { \bool_set_true:N \l__leanquote_unverified_bool }
+        { f } { \bool_set_true:N \l__leanquote_unverified_bool }
+        { y } { \bool_set_true:N \l__leanquote_sorryfile_bool }
         { n }
           {
             \str_if_eq:VnT \l_leanquote_verify_tl { true }
@@ -359,7 +431,7 @@
 \cs_new_protected:Npn \__leanquote_export_fresh:nn #1#2
   {
     \prop_get:NnNTF \g__leanquote_fresh_prop {#1} \l_tmpb_tl
-      { \bool_set:Nn \l__leanquote_fresh_bool { \tl_if_eq_p:Nn \l_tmpb_tl { 1 } } }
+      { \bool_set:Nn \l__leanquote_fresh_bool { \str_if_eq_p:Vn \l_tmpb_tl { 1 } } }
       {
         \str_clear:N \l__leanquote_stored_str
         \ior_open:Nn \g__leanquote_ior {#1}
@@ -398,6 +470,9 @@
 \cs_new_protected:Npn \__leanquote_typeset:nn #1#2
   {
     \bool_set_false:N \l__leanquote_unverified_bool
+    \bool_set_false:N \l__leanquote_sorryfile_bool
+    \bool_set_false:N \l__leanquote_sorrydecl_bool
+    \bool_set_false:N \l__leanquote_axioms_bool
     \bool_set:Nn \l_leanquote_check_bool { ! \str_if_eq_p:Vn \l_leanquote_verify_tl { false } }
     \str_set:Nn \l__leanquote_file_str {#1}
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
@@ -453,11 +528,27 @@
           { \msg_warning:nnVn { leanquote } { ambiguous } \l__leanquote_name_str {#1} }
       }
     \iow_close:N \g__leanquote_iow
+    % The mark, most serious first; the build log's file-level sorry only without an export.
+    \tl_clear:N \l__leanquote_mark_tl
+    \bool_if:NTF \l__leanquote_unverified_bool
+      { \tl_set:Nn \l__leanquote_mark_tl { UNVERIFIED } }
+      {
+        \bool_if:NTF \l__leanquote_sorrydecl_bool
+          { \tl_set:Nn \l__leanquote_mark_tl { USES~SORRY } }
+          {
+            \bool_lazy_and:nnTF { \l__leanquote_sorryfile_bool } { ! \l__leanquote_useexport_bool }
+              { \tl_set:Nn \l__leanquote_mark_tl { SORRY~IN~FILE } }
+              {
+                \bool_if:NT \l__leanquote_axioms_bool
+                  { \tl_set:Nn \l__leanquote_mark_tl { EXTRA~AXIOMS } }
+              }
+          }
+      }
     \bool_if:NTF \l_leanquote_box_bool
       { \begin{leanquotebox} }
       {
-        \bool_if:NT \l__leanquote_unverified_bool
-          { \par\noindent\leanquoteunverifiedtext\par }
+        \tl_if_empty:NF \l__leanquote_mark_tl
+          { \par\noindent\leanquotebadgetext{\l__leanquote_mark_tl}\par }
       }
     \use:e
       {
@@ -520,11 +611,13 @@
     \raisebox { \dimexpr 1.6ex - \height \relax }
       { \scalebox{0.65} { \textcolor{leanquotelogoblue} { \fontsize{5}{5} \fontfamily{cmss} \selectfont TM } } }
   }
-% The badge shown on quotes that could not be checked against compiled Lean code.
-\cs_new:Npn \leanquoteunverifiedtext
-  { \textcolor{red!75!black}{ \textsf{ \bfseries \scriptsize UNVERIFIED } } }
-\cs_new:Npn \leanquoteunverifiedbadge
-  { \textcolor{white}{ \textsf{ \bfseries \scriptsize UNVERIFIED } } }
+% The mark shown on quotes that are not known to be fully checked by Lean:
+% UNVERIFIED, USES SORRY, SORRY IN FILE or EXTRA AXIOMS. \leanquotebadge is drawn on a red
+% background in the box; \leanquotebadgetext is used without a box.
+\cs_new:Npn \leanquotebadge #1
+  { \textcolor{white}{ \textsf{ \bfseries \scriptsize #1 } } }
+\cs_new:Npn \leanquotebadgetext #1
+  { \textcolor{red!75!black}{ \textsf{ \bfseries \scriptsize #1 } } }
 \newtcolorbox{leanquotebox}{breakable, enhanced, colback=black!3, colframe=black!45,
   boxrule=0.5pt, arc=2pt, left=6pt, right=6pt, top=3pt, bottom=3pt,
   overlay~unbroken~and~first={
@@ -533,17 +626,17 @@
         \node[anchor=north~east, inner~sep=3pt, draw=black!45, fill=white,
           line~width=0.5pt, rounded~corners=2pt] (leanquotelogo) at (frame.north~east)
           { \includegraphics[height=1.6ex]{\l_leanquote_logo_tl} \leanquotelogomark } ;
-        \bool_if:NT \l__leanquote_unverified_bool
+        \tl_if_empty:NF \l__leanquote_mark_tl
           {
             \node[anchor=north~east, inner~sep=3pt, fill=red!75!black, rounded~corners=2pt]
-              at ([xshift=-3pt]leanquotelogo.north~west) { \leanquoteunverifiedbadge } ;
+              at ([xshift=-3pt]leanquotelogo.north~west) { \leanquotebadge{\l__leanquote_mark_tl} } ;
           }
       }
       {
-        \bool_if:NT \l__leanquote_unverified_bool
+        \tl_if_empty:NF \l__leanquote_mark_tl
           {
             \node[anchor=north~east, inner~sep=3pt, fill=red!75!black, rounded~corners=2pt]
-              at (frame.north~east) { \leanquoteunverifiedbadge } ;
+              at (frame.north~east) { \leanquotebadge{\l__leanquote_mark_tl} } ;
           }
       }
   }}

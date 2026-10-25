@@ -48,12 +48,18 @@ No step on the Lean side beyond your usual `lake build`:
   matches the standard Lean layout. Names may be short (`Tiles`) or qualified (`TranslationTiling.Abstract.Tiles`); a
   qualified name matches a declaration inside the corresponding `namespace`, since either name
   may be a dotted suffix of the other. An unknown name is an error, an ambiguous one a warning.
-- **Checking it was compiled.** With `project` set, if the `.lean` file is newer than its compiled
-  `.lake/build/lib/lean/.../File.olean`, the code shown is not what Lean last compiled: the
-  quote's box gets a red **UNVERIFIED** badge (and LaTeX warns), so you notice that you forgot
-  `lake build`. `verify=auto` (the default) does this and stays silent when there is no `.olean`
-  to compare with (arXiv, CI, Overleaf); `verify=true` also marks quotes without an `.olean`;
-  `verify=false` turns the check off.
+- **What has Lean checked?** With `project` set, quotes get a red mark in the corner of their box
+  (and a warning in the log) when they are not known to be fully checked:
+  - **UNVERIFIED**: the `.lean` file is newer than its compiled `.olean`, or its last `lake build`
+    failed; with `verify=true`, also when there is no compiled file;
+  - **USES SORRY**: the declaration depends on `sorry`, anywhere in its dependencies (needs an export);
+  - **SORRY IN FILE**: Lake's build log reports a `sorry` in the file (without an export);
+  - **EXTRA AXIOMS**: the declaration depends on axioms beyond `propext`, `Classical.choice`,
+    `Quot.sound`, e.g. via `native_decide` (needs an export).
+
+  By default (`verify=auto`), the code shown is thus what Lean last compiled successfully; with an
+  export, it is also known not to depend on `sorry` or non-standard axioms. Without an export, a
+  `sorry` in an imported file is not seen. `verify=false` turns the checks off.
 
 All declarations named in one `\leanquote` go into one listing.
 
@@ -64,7 +70,7 @@ Include the `.lean` files and `leanquote.sty` in the upload; with the default `v
 there is no `.olean` there, so nothing is marked. Do the check where Lean is built: run
 `lake build`, compile the paper locally, check that no quote is marked UNVERIFIED, then upload.
 
-### Optional: exact boundaries with `leanquote-export`
+### Optional: exact boundaries and axioms with `leanquote-export`
 
 If you want Lean itself to say where each declaration starts and ends, run, from the root of the
 Lake project:
@@ -75,7 +81,8 @@ path/to/leanquote/leanquote-export TranslationTiling.Abstract [MORE.Modules ...]
 
 This builds each module and writes `.lake/build/leanquote/TranslationTiling/Abstract.leanquote`
 (inside the build directory, so not tracked by git). From then on, `\leanquote` finds it
-automatically and uses Lean's exact declaration ranges, nothing else changes in the paper.
+automatically and uses Lean's exact declaration ranges, and the axioms each declaration depends
+on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the paper.
 If `Abstract.lean` is edited after the export, LaTeX warns and falls back to reading the
 `.lean` file directly, so the paper always shows the current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found, and an export can be given explicitly as
