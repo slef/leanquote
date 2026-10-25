@@ -161,13 +161,28 @@ and v4.35.0 (exporter).
 
 ## Documentation
 
-The manual's source is `doc/leanquote-doc.tex`. Download the compiled PDF from
-[GitHub releases](https://github.com/slef/leanquote/releases), or run `./make-ctan.sh`
-in a Git checkout to build `doc/leanquote-doc.pdf` and the CTAN archive `leanquote.zip`.
+Download the manual PDF from [GitHub releases](https://github.com/slef/leanquote/releases),
+or find it at `doc/leanquote-doc.pdf` in the CTAN archive. From a Git checkout or an
+extracted CTAN archive, `./make-ctan.sh` builds the manual from `doc/leanquote-doc.tex`
+and writes `leanquote.zip`. It requires a POSIX shell (Cygwin on Windows), pdfLaTeX,
+zip and unzip; unrelated files in `build/` are preserved.
 Generated PDFs are distributed as build/release assets rather than tracked in Git.
 
-From a Git checkout, run the API regression tests with `python3 tests/test_api.py` (requires pdfLaTeX).
-Set `LEANQUOTE_TEX_ENGINE=lualatex` or `LEANQUOTE_TEX_ENGINE=xelatex` to test another engine.
+From a Git checkout, run all regression tests with:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+Tests require Python 3, the packaging tools above, and Lean/Lake via elan for exporter
+tests. Set `LEANQUOTE_TEX_ENGINE=lualatex` or `LEANQUOTE_TEX_ENGINE=xelatex` to select
+another engine; pdfLaTeX is still needed to build the manual. Set `ELAN_TOOLCHAIN`
+to select a Lean version, for example `leanprover/lean4:v4.35.0`.
+
+CI runs discovered tests under all three TeX engines and Lean v4.28.0/v4.35.0, including
+source-only packaging and the extracted example. Each run uploads the built manual PDF
+and CTAN ZIP as the `leanquote-distribution` artifact. Publishing a GitHub release runs
+the same checks and attaches both files to that release using the built-in GitHub token.
 
 ## Related tools
 

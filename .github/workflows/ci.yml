@@ -1,0 +1,92 @@
+name: Regression tests and distribution
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: ${{ matrix.engine }} / Lean ${{ matrix.lean }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - engine: pdflatex
+            lean: v4.28.0
+          - engine: lualatex
+            lean: v4.35.0
+          - engine: xelatex
+            lean: v4.35.0
+    env:
+      LEANQUOTE_TEX_ENGINE: ${{ matrix.engine }}
+      ELAN_TOOLCHAIN: leanprover/lean4:${{ matrix.lean }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install TeX and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3 zip unzip lmodern texlive-latex-extra texlive-fonts-recommended \
+            texlive-luatex texlive-xetex
+      - name: Install pinned elan and Lean
+        # Official elan release binary; pin both installer bytes and toolchain.
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/leanprover/elan/releases/download/v4.1.2/elan-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$RUNNER_TEMP/elan.tar.gz"
+          echo "f81c2e48c1588d4612cd2c8851947898a45ac8d72748a07dff3a5694f1cf589b  $RUNNER_TEMP/elan.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/elan.tar.gz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/elan-init" -y --no-modify-path --default-toolchain "$ELAN_TOOLCHAIN"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check installed tools
+        run: |
+          "$LEANQUOTE_TEX_ENGINE" --version
+          lean --version
+          lake --version
+      - name: Run discovered regression tests
+        # Includes API, parsing, exporter, packaging, and extracted-example tests.
+        run: python3 -m unittest discover -s tests -v
+      - name: Build manual PDF and CTAN archive from source
+        if: matrix.engine == 'pdflatex'
+        run: ./make-ctan.sh
+      - name: Upload distribution artifacts
+        if: matrix.engine == 'pdflatex'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: leanquote-distribution
+          path: |
+            doc/leanquote-doc.pdf
+            leanquote.zip
+          if-no-files-found: error
+
+  release-assets:
+    name: Attach assets to the published release
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: leanquote-distribution
+          path: distribution
+      - name: Upload PDF and ZIP to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            distribution/doc/leanquote-doc.pdf distribution/leanquote.zip --clobber
