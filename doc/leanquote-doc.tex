@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.12, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.13, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -70,9 +70,10 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \item[\cs{leanfile}\texttt{[\meta{options}]\{\meta{file}\}}]
   sets the current file for the following \cs{leanquote} commands. Options given here apply to
   all of them. The path is relative to \opt{project}, if set. The same command is also
-  available as \cs{leanquotefile}. If the document already defines \cs{leanfile} (some
-  blueprint macro files do), \textsf{leanquote} leaves that definition alone, warns, and
-  \cs{leanquotefile} is used instead.
+  available as \cs{leanquotefile}. Both can be used in the preamble. If \cs{leanfile} is
+  already defined when \textsf{leanquote} is loaded (some blueprint macro files define it),
+  the package leaves that definition alone, warns, and \cs{leanquotefile} is used instead;
+  macro files that define their own \cs{leanfile} should therefore be loaded first.
 \item[\cs{leanquote}\texttt{[\meta{options}]\{\meta{names}\}}]
   typesets the comma-separated declarations \meta{names} of the current file, together, in one
   listing.
@@ -131,10 +132,13 @@ Option & Default & Meaning \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
 \opt{verify=}\meta{mode} & \texttt{auto} & \texttt{auto}, \texttt{true} or \texttt{false}; see Section~\ref{sec:compiled} \\
 \opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
-any other key & & passed to \cs{lstinputlisting} \\
+any other key & & passed to \textsf{listings} (e.g.\ \opt{basicstyle}) \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+Listings settings (any other key) given to \cs{leanquotesetup} apply to every later quote;
+those given to \cs{leanfile} or to a quote are added to them and win in case of conflict.
 
 \paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
@@ -261,7 +265,22 @@ The exporter is a single Lean file (\texttt{lean/LeanQuoteExport.lean}) run with
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
 explicitly with \cs{leanfilequote}\verb|{Abstract.leanquote}{...}|.
 
-\section{Engines and symbols}
+\section{Colours, engines and symbols}
+
+The \texttt{leanquote} style colours four classes of words: keywords and commands
+(\texttt{def}, \texttt{theorem}, \texttt{fun}, \texttt{by}, \dots) in blue; sorts and the
+common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{Nat},
+\texttt{Fin}, \texttt{Set}, \texttt{Finset}, \texttt{List}, \texttt{Real},
+\texttt{Polynomial}, \dots) in green; common tactics (\texttt{simp}, \texttt{exact},
+\texttt{omega}, \dots) in purple; and \texttt{sorry} in red. The colours are
+\texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
+redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
+\opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
+document's own types:
+\begin{latexsrc}
+\leanquotesetup{morekeywords=[2]{Prototile, Point}}
+\end{latexsrc}
+
 
 The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
 ($\mathbb{N}\ \mathbb{Z}\ \mathbb{R}\ \to\ \forall\ \exists\ \sum\ \bigcup\ \le$ \dots, Greek letters, sub- and superscripts) as math, under
@@ -341,7 +360,10 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.12 (2026-10-26)] \opt{proof=false} hides proofs of theorems and lemmas.
+\item[0.13 (2026-10-26)] Common Mathlib types, tactics and \texttt{sorry} coloured; listings
+  settings in \cs{leanquotesetup} are kept for the whole document; \cs{leanfile} available in the
+  preamble.
+\item[0.12] \opt{proof=false} hides proofs of theorems and lemmas.
 \item[0.11] \cs{leanquoteimports} and the \texttt{:imports} name.
 \item[0.10] Failed builds marked \textsc{unverified}; \textsc{uses sorry}, \textsc{sorry in file} and \textsc{extra axioms} marks; axioms in exports.
 \item[0.9] \opt{verify=auto} (new default), \opt{true}, \opt{false}; publishing section.

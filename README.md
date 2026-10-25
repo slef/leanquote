@@ -37,8 +37,9 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 ```
 
 `\leanfile[options]{file}` (alias `\leanquotefile`) sets the current file (options given there
-apply to its quotes; if the document already defines `\leanfile`, as some blueprint macro files
-do, the package leaves it alone, warns, and you use `\leanquotefile`);
+apply to its quotes; it works in the preamble too. If `\leanfile` is already defined when
+leanquote is loaded, as some blueprint macro files do, the package leaves it alone, warns, and you
+use `\leanquotefile`);
 `\leanquote[options]{names}` quotes from it; `\leanfilequote[options]{file}{names}` names the
 file explicitly. `\leanquoteimports` quotes the file's import block (the `module` and
 `[public] import` lines at its top); it can also be named `:imports` in a list, as in
@@ -109,7 +110,12 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
 | `verify=<mode>` | `auto` | `auto`: mark a quote UNVERIFIED if its `.lean` is newer than its `.olean`; `true`: also if there is no `.olean`; `false`: no check (old name: `check`) |
 | `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
-| any other key | | passed to `\lstinputlisting` (e.g. `basicstyle=\footnotesize\ttfamily`) |
+| any other key | | passed to listings (e.g. `basicstyle=\footnotesize\ttfamily`); in `\leanquotesetup` it applies to all later quotes |
+
+The default style colours keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
+`Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). Add
+your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Point}}` (`[3]` for tactics);
+the colours are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 
 ## Texlish
 

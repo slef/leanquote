@@ -17,7 +17,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-26}{0.12}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.13}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -62,7 +62,15 @@
       \tl_put_right:Nx \l__leanquote_lst_tl
         { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
   }
-\NewDocumentCommand \leanquotesetup { m } { \keys_set:nn { leanquote } {#1} }
+% Listings settings given to \leanquotesetup (unknown keys) are kept for the whole document
+% (or group); those given to a quote or \leanfile are added to them.
+\tl_new:N \l__leanquote_setuplst_tl
+\NewDocumentCommand \leanquotesetup { m }
+  {
+    \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
+    \keys_set:nn { leanquote } {#1}
+    \tl_set_eq:NN \l__leanquote_setuplst_tl \l__leanquote_lst_tl
+  }
 
 % ---------------------------------------------------------------- messages
 \msg_new:nnn { leanquote } { not-found }
@@ -729,7 +737,7 @@
 \NewDocumentCommand \leanfilequote { O{} m m }
   {
     \group_begin:
-      \tl_clear:N \l__leanquote_lst_tl
+      \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
       \keys_set:nn { leanquote } {#1}
       \__leanquote_typeset:nn {#2} {#3}
     \group_end:
@@ -743,17 +751,16 @@
 \msg_new:nnn { leanquote } { leanfile-taken }
   { \token_to_str:N \leanfile\ is~already~defined~(for~example~by~blueprint~macros),~
     so~leanquote~leaves~it~alone.~Use~\token_to_str:N \leanquotefile\ instead. }
-\AtBeginDocument
-  {
-    \cs_if_exist:NTF \leanfile
-      { \msg_warning:nn { leanquote } { leanfile-taken } }
-      { \NewCommandCopy \leanfile \leanquotefile }
-  }
 \NewDocumentCommand \leanquotefile { O{} m }
   {
     \tl_set:Nn \l_leanquote_file_tl {#2}
     \tl_set:Nn \l__leanquote_fileopts_tl {#1}
   }
+% \leanfile is the short name of \leanquotefile, defined now if it is free. If a document's
+% macros (e.g. a blueprint's) define \leanfile before leanquote is loaded, they keep it.
+\cs_if_exist:NTF \leanfile
+  { \msg_warning:nn { leanquote } { leanfile-taken } }
+  { \NewCommandCopy \leanfile \leanquotefile }
 % \leanquoteimports[options]: quote the import block of the current file.
 \NewDocumentCommand \leanquoteimports { O{} } { \leanquote[#1]{:imports} }
 % \leanquote[options]{names}: quote declarations from the current file.
@@ -763,7 +770,7 @@
       { \msg_error:nn { leanquote } { no-current-file } }
       {
         \group_begin:
-          \tl_clear:N \l__leanquote_lst_tl
+          \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
           \keys_set:nV { leanquote } \l__leanquote_fileopts_tl
           \keys_set:nn { leanquote } {#1}
           \exp_args:NV \__leanquote_typeset:nn \l_leanquote_file_tl {#2}
@@ -812,13 +819,32 @@
 \ExplSyntaxOff
 % ---------------------------------------------------------------- listings style
 \lstdefinelanguage{leanquote-lean}{
+  % 1: keywords and commands
   morekeywords={def,theorem,lemma,abbrev,structure,inductive,instance,class,where,fun,
     by,have,show,from,let,in,if,then,else,match,with,do,return,namespace,end,section,
-    variable,open,import,noncomputable,private,protected,example,axiom,deriving,calc},
-  morekeywords=[2]{Prop,Type,Sort},
+    variable,open,import,noncomputable,private,protected,example,axiom,deriving,calc,
+    universe,mutual,opaque,partial,unsafe,nonrec,extends,attribute,set_option,notation,
+    infix,infixl,infixr,prefix,postfix,macro,syntax,module,public,meta,termination_by,
+    decreasing_by,at,only,using},
+  % 2: sorts and common types of core Lean and Mathlib (add your own with morekeywords=[2]{...})
+  morekeywords=[2]{Prop,Type,Sort,True,False,Nat,Int,Rat,Real,Complex,Bool,Fin,Set,Finset,
+    Multiset,List,Array,Option,Prod,Sum,Sigma,Subtype,Unit,PUnit,Empty,String,Char,Function,
+    Equiv,Matrix,Polynomial,MvPolynomial,PowerSeries,ZMod,Ideal,Submodule,Subgroup,Finsupp,
+    EuclideanSpace,ENNReal,NNReal,EReal,ENat,PNat,Filter,Measure,SimpleGraph,Group,Ring,
+    Field,Module,Algebra,TopologicalSpace,MetricSpace,Decidable,DecidableEq,Inhabited,
+    Nonempty,Fintype,Finite,Countable,Exists,And,Or,Not,Eq,Ne,Iff},
+  % 3: common tactics (visible when proofs are shown)
+  morekeywords=[3]{rfl,simp,simpa,exact,intro,intros,apply,refine,rw,rewrite,constructor,
+    cases,rcases,obtain,induction,omega,decide,norm_num,linarith,nlinarith,positivity,aesop,
+    ring,ring_nf,field_simp,use,unfold,contradiction,exfalso,specialize,trivial,
+    assumption,subst,ext,funext,congr,gcongr,tauto,push_neg,by_contra,by_cases,
+    native_decide,all_goals,any_goals,show_term,infer_instance},
+  % 4: sorry, in red
+  morekeywords=[4]{sorry,admit},
   sensitive=true, morecomment=[l]{--}, morecomment=[n]{/-}{-/}, morestring=[b]"}
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
+\definecolor{leanquotetactic}{RGB}{136,84,150}
 % Lean's Unicode symbols, typeset as math. Under pdfLaTeX they become listings `literate`
 % replacements; under LuaLaTeX and XeLaTeX they are made active inside listings.
 \def\leanquote@table{%
@@ -959,6 +985,7 @@
         \exp_not:n {language=leanquote-lean, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
   keywordstyle=\bfseries\color{leanquotekeyword}, keywordstyle=[2]\color{leanquotetype},
+  keywordstyle=[3]\color{leanquotetactic}, keywordstyle=[4]\bfseries\color{red!75!black},
   commentstyle=\itshape\color{black!60},
   breaklines=true, breakatwhitespace=true, postbreak=\mbox{\hspace{1em}}}
         \tl_if_empty:NF \l__leanquote_literate_tl
