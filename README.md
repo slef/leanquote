@@ -172,8 +172,8 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
   LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a monospace font that
   has them (LuaLaTeX, XeLaTeX).
 
-Tested with pdfLaTeX, LuaLaTeX and XeLaTeX from TeX Live 2025, and with Lean v4.28.0, v4.31.0
-and v4.35.0 (exporter).
+Tested with pdfLaTeX, LuaLaTeX and XeLaTeX from TeX Live 2025, and with Lean v4.26.0,
+v4.29.1, v4.31.0 and v4.35.0 (exporter).
 
 ## Documentation
 
