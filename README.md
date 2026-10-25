@@ -31,6 +31,7 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \leanfile{TranslationTiling/Abstract.lean}  % current file for the following quotes
 \leanquote{Point, Prototile}
 \leanquote[doc]{Tiles}                      % with its doc comment
+\leanquote[proof=false]{main_theorem}       % statement only, proof shown as := ...
 \leanfilequote{Other/File.lean}{foo}        % one-off quote from another file
 \leanquoteimports                           % the import block of the current file
 ```
@@ -100,6 +101,7 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | Option | Default | Meaning |
 |---|---|---|
 | `doc` | false | also show each declaration's doc comment |
+| `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |

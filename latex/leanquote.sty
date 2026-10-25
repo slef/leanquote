@@ -17,7 +17,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-26}{0.11}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.12}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -36,6 +36,9 @@
     doc   .bool_set:N = \l_leanquote_doc_bool ,
     doc   .default:n  = true ,
     doc   .initial:n  = false ,
+    proof .bool_set:N = \l_leanquote_proof_bool ,
+    proof .default:n  = true ,
+    proof .initial:n  = true ,
     style .tl_set:N   = \l_leanquote_style_tl ,
     style .initial:n  = leanquote ,
     box   .bool_set:N = \l_leanquote_box_bool ,
@@ -123,7 +126,99 @@
 \prop_new:N \g__leanquote_checked_prop
 
 % Write one line to the output file.
-\cs_new_protected:Npn \__leanquote_write:n #1 { \iow_now:Nn \g__leanquote_iow {#1} }
+% Lines of the declaration being extracted are collected in a buffer, then written.
+\seq_new:N \l__leanquote_buf_seq
+\cs_new_protected:Npn \__leanquote_write:n #1 { \seq_put_right:Nn \l__leanquote_buf_seq {#1} }
+
+% ---------------------------------------------------------------- hiding proofs (proof=false)
+% For a theorem or lemma, cut at the `:=` that starts the proof (outside brackets and `--`
+% comments) and print `:= ...` instead. Definitions keep their bodies.
+\int_new:N \l__leanquote_depth_int
+\int_new:N \l__leanquote_pos_int
+\int_new:N \l__leanquote_cut_int
+\int_new:N \l__leanquote_prev_int
+\bool_new:N \l__leanquote_intheorem_bool
+\bool_new:N \l__leanquote_cutdone_bool
+\str_new:N \l__leanquote_line_str
+\cs_new_protected:Npn \__leanquote_find_cut:N #1
+  {% #1 = str variable holding one line; sets \l__leanquote_cut_int (0 = no cut in this line)
+    \int_zero:N \l__leanquote_pos_int
+    \int_zero:N \l__leanquote_cut_int
+    \int_zero:N \l__leanquote_prev_int
+    \str_map_inline:Nn #1
+      {
+        \int_incr:N \l__leanquote_pos_int
+        \int_case:nn { `##1 }
+          {
+            { 40 }    { \int_incr:N \l__leanquote_depth_int }   % (
+            { 91 }    { \int_incr:N \l__leanquote_depth_int }   % [
+            { 123 }   { \int_incr:N \l__leanquote_depth_int }   % {
+            { 10216 } { \int_incr:N \l__leanquote_depth_int }   % ⟨ (Unicode engines)
+            { 41 }    { \int_decr:N \l__leanquote_depth_int }
+            { 93 }    { \int_decr:N \l__leanquote_depth_int }
+            { 125 }   { \int_decr:N \l__leanquote_depth_int }
+            { 10217 } { \int_decr:N \l__leanquote_depth_int }
+            { 61 }                                              % =
+              {
+                \bool_lazy_and:nnT
+                  { \int_compare_p:nNn { \l__leanquote_prev_int } = { 58 } }
+                  { \int_compare_p:nNn { \l__leanquote_depth_int } < { 1 } }
+                  {
+                    \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 }
+                    \str_map_break:
+                  }
+              }
+            { 45 }                                              % -
+              {
+                \int_compare:nNnT { \l__leanquote_prev_int } = { 45 }
+                  { \str_map_break: }
+              }
+          }
+        \int_set:Nn \l__leanquote_prev_int { `##1 }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_flush:
+  {
+    \bool_if:NTF \l_leanquote_proof_bool
+      { \seq_map_inline:Nn \l__leanquote_buf_seq { \iow_now:Nn \g__leanquote_iow {##1} } }
+      {
+        \bool_set_false:N \l__leanquote_intheorem_bool
+        \bool_set_false:N \l__leanquote_cutdone_bool
+        \int_zero:N \l__leanquote_depth_int
+        \seq_map_inline:Nn \l__leanquote_buf_seq
+          {
+            \bool_if:NF \l__leanquote_cutdone_bool
+              {
+                \str_set:Nn \l__leanquote_line_str {##1}
+                \bool_if:NF \l__leanquote_intheorem_bool
+                  {
+                    \regex_match:nnT
+                      { \A (?:@\[ [^\]]* \] \s*)?
+                           (?:(?:private|protected|noncomputable|nonrec) \s+)*
+                           (?:theorem|lemma) \s }
+                      {##1}
+                      { \bool_set_true:N \l__leanquote_intheorem_bool }
+                  }
+                \bool_if:NTF \l__leanquote_intheorem_bool
+                  {
+                    \__leanquote_find_cut:N \l__leanquote_line_str
+                    \int_compare:nNnTF { \l__leanquote_cut_int } > { 0 }
+                      {
+                        \tl_set:Ne \l_tmpa_tl
+                          { \str_range:Nnn \l__leanquote_line_str {1} { \l__leanquote_cut_int - 1 } }
+                        \regex_replace_once:nnN { \s* \Z } { } \l_tmpa_tl
+                        \iow_now:Ne \g__leanquote_iow { \l_tmpa_tl \c_space_tl := ~ ... }
+                        \bool_set_true:N \l__leanquote_cutdone_bool
+                      }
+                      { \iow_now:Nn \g__leanquote_iow {##1} }
+                  }
+                  { \iow_now:Nn \g__leanquote_iow {##1} }
+              }
+          }
+      }
+    \seq_clear:N \l__leanquote_buf_seq
+  }
+
 
 % ---------------------------------------------------------------- .leanquote exports
 % `@@axioms a b c` line of an export: flag sorry and axioms beyond the standard three.
@@ -168,7 +263,7 @@
                     \regex_match:nnTF { \A @@doc\x{20} } {##1}
                       {
                         \bool_if:NT \l_leanquote_doc_bool
-                          { \iow_now:Ne \g__leanquote_iow { \str_range:nnn {##1} {7} {-1} } }
+                          { \seq_put_right:Ne \l__leanquote_buf_seq { \str_range:nnn {##1} {7} {-1} } }
                       }
                       { \__leanquote_write:n {##1} }
                   }
@@ -573,7 +668,8 @@
         \tl_set:Ne \l_tmpa_tl { \tl_to_str:n {##1} }
         \tl_trim_spaces:N \l_tmpa_tl
         \str_set:NV \l__leanquote_name_str \l_tmpa_tl
-        \bool_if:NF \l__leanquote_first_bool { \__leanquote_write:n { } }
+        \bool_if:NF \l__leanquote_first_bool { \iow_now:Nn \g__leanquote_iow { } }
+        \seq_clear:N \l__leanquote_buf_seq
         \bool_set_false:N \l__leanquote_first_bool
         \str_if_eq:NNTF \l__leanquote_name_str \c__leanquote_imports_str
           {
@@ -595,6 +691,7 @@
           }
         \int_compare:nNnT { \l__leanquote_matches_int } > { 1 }
           { \msg_warning:nnVn { leanquote } { ambiguous } \l__leanquote_name_str {#1} }
+        \__leanquote_flush:
       }
     \iow_close:N \g__leanquote_iow
     % The mark, most serious first; the build log's file-level sorry only without an export.

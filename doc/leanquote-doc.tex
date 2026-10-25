@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.11, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.12, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -96,6 +96,18 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 corresponding \texttt{namespace}: either name may be a dotted suffix of the other. An unknown name
 is an error; an ambiguous one is a warning, and the first match is used.
 
+With \opt{proof=false}, theorems and lemmas are shown without their proofs, which the reader
+does not need in order to check the statement; definitions keep their bodies:
+
+\begin{latexsrc}
+\leanquote[proof=false]{tiling_coRE_complete}
+\end{latexsrc}
+\leanquote[proof=false]{tiling_coRE_complete}
+
+\noindent The proof starts at the first \texttt{:=} outside brackets and \texttt{--} comments,
+so default values of parameters, such as \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
+Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
+
 With the \opt{doc} option, the doc comment is included:
 
 \begin{latexsrc}
@@ -111,6 +123,7 @@ With the \opt{doc} option, the doc comment is included:
 Option & Default & Meaning \\
 \midrule
 \opt{doc} & false & also show each declaration's doc comment \\
+\opt{proof} & true & with \opt{proof=false}, theorems and lemmas stop at the \texttt{:=} of their proof, shown as \texttt{:= ...} \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
 \opt{logo=}\meta{file} & none & image in the frame's top-right corner \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
@@ -328,7 +341,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.11 (2026-10-26)] \cs{leanquoteimports} and the \texttt{:imports} name.
+\item[0.12 (2026-10-26)] \opt{proof=false} hides proofs of theorems and lemmas.
+\item[0.11] \cs{leanquoteimports} and the \texttt{:imports} name.
 \item[0.10] Failed builds marked \textsc{unverified}; \textsc{uses sorry}, \textsc{sorry in file} and \textsc{extra axioms} marks; axioms in exports.
 \item[0.9] \opt{verify=auto} (new default), \opt{true}, \opt{false}; publishing section.
 \item[0.8] Trademark mark after the logo (\cs{leanquotelogomark}).
