@@ -9,7 +9,7 @@ Upload page: https://ctan.org/upload. Build the archive with `./make-ctan.sh`.
 | Email | (one maintainer's address) |
 | Suggested CTAN directory | /macros/latex/contrib/leanquote |
 | License | MIT License |
-| Home page | https://github.com/slef/leanquote (make public first) |
+| Home page | https://github.com/slef/leanquote |
 | Bug tracker | https://github.com/slef/leanquote/issues |
 | Repository | https://github.com/slef/leanquote |
 | Version | 0.15 2026-10-26 |
