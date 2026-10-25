@@ -5,7 +5,8 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{leanquote}
-\leanquotesetup{project=../example/}
+% The example file is a copy outside its Lake project, so it cannot be verified here.
+\leanquotesetup{project=../example/, verify=false}
 
 \lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
@@ -18,7 +19,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.6, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.7, 2026-10-25\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -69,7 +70,10 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \begin{description}
 \item[\cs{leanfile}\texttt{[\meta{options}]\{\meta{file}\}}]
   sets the current file for the following \cs{leanquote} commands. Options given here apply to
-  all of them. The path is relative to \opt{project}, if set.
+  all of them. The path is relative to \opt{project}, if set. The same command is also
+  available as \cs{leanquotefile}. If the document already defines \cs{leanfile} (some
+  blueprint macro files do), \textsf{leanquote} leaves that definition alone, warns, and
+  \cs{leanquotefile} is used instead.
 \item[\cs{leanquote}\texttt{[\meta{options}]\{\meta{names}\}}]
   typesets the comma-separated declarations \meta{names} of the current file, together, in one
   listing.
@@ -104,7 +108,7 @@ Option & Default & Meaning \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
 \opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
-\opt{check} & true & warn if the code may not be what Lean compiled \\
+\opt{verify} & true & check that Lean compiled the code; if not, mark it \textsc{unverified} \\
 \opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
 any other key & & passed to \cs{lstinputlisting} \\
 \bottomrule
@@ -134,14 +138,23 @@ dropped. This matches the layout used by Mathlib and by most Lean code, includin
 (\texttt{.lake/build/lib/lean/\dots/File.olean}) only when it builds successfully, so after a
 successful \texttt{lake build} the \texttt{.olean} is newer than its \texttt{.lean} source.
 With \opt{project} set to the root of the Lake project, \textsf{leanquote} compares the two
-modification dates and warns if the source is newer:
+modification dates. If the source is newer, or if there is no compiled file to compare with,
+the quote is marked \textsc{unverified} in the corner of its box, since a warning in the log is
+easily missed:
+
+\leanquote[verify]{Adjacent}
+
+\noindent (Here the example file has no compiled \texttt{.olean}.) Without a box, a red
+\textsc{unverified} line appears above the code. The log also explains the problem:
 \begin{latexsrc}
 Package leanquote Warning: ../lean/TranslationTiling/Abstract.lean is newer
 (leanquote)  than its compiled file ... The code shown may not be what Lean
-(leanquote)  checked: run lake build.
+(leanquote)  checked (the quote is marked UNVERIFIED): run lake build.
 \end{latexsrc}
-If no \texttt{.olean} is found (for instance, for a copy of the file outside its project), the
-package only notes in the log that it cannot check.
+For a copy of a Lean file outside its project, which cannot be checked, set \opt{verify=false}
+to turn off both the mark and the warning; the old name \opt{check} is also accepted.
+The mark's appearance can be changed by redefining \cs{leanquoteunverifiedbadge} (in the box)
+and \cs{leanquoteunverifiedtext} (without a box).
 
 \section{Optional: exact boundaries from Lean}
 
@@ -192,6 +205,8 @@ With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
   continuation lines in column~0 (other than the listed keywords) is cut short.
 \item Namespaces are not tracked: two declarations with the same short name in different
   namespaces give an ambiguity warning; quote them with a name that distinguishes them.
+\item The listings language is called \texttt{leanquote-lean}, so that a document's own
+  \verb|\lstdefinelanguage{Lean4}| does not interfere with it.
 \item The compiled check relies on file modification dates; copying a project without
   preserving them can cause false warnings or hide stale code.
 \end{itemize}
@@ -228,13 +243,19 @@ compiled module.
 The idea of including Lean snippets in papers to keep them in sync with the code was raised on
 the Lean Zulip by Eric Wieser in 2022 (thread ``MathemaTeX'').
 
+\section{Acknowledgments}
+
+The package and this documentation were produced with the help of Claude Opus~5.5
+(Anthropic), working under the authors' direction.
+
 \section{License and history}
 
 \textsf{leanquote} is released under the MIT License. It grew out of a position paper by the
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.6 (2026-10-25)] Timestamps compared with \LaTeX3's \verb|\file_compare_timestamp|; related tools.
+\item[0.7 (2026-10-25)] \textsc{unverified} mark and \opt{verify} option; \cs{leanquotefile} and a safe \cs{leanfile}; listings language renamed \texttt{leanquote-lean}.
+\item[0.6] Timestamps compared with \LaTeX3's \verb|\file_compare_timestamp|; related tools.
 \item[0.5] Lua\LaTeX{} and Xe\LaTeX{} support; documentation.
 \item[0.4] Renamed from \textsf{leandecl}; \cs{leanfile} and \cs{leanquote}.
 \item[0.3] Optional exports used automatically when up to date.

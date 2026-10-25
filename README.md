@@ -34,7 +34,9 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \leanfilequote{Other/File.lean}{foo}        % one-off quote from another file
 ```
 
-`\leanfile[options]{file}` sets the current file (options given there apply to its quotes);
+`\leanfile[options]{file}` (alias `\leanquotefile`) sets the current file (options given there
+apply to its quotes; if the document already defines `\leanfile`, as some blueprint macro files
+do, the package leaves it alone, warns, and you use `\leanquotefile`);
 `\leanquote[options]{names}` quotes from it; `\leanfilequote[options]{file}{names}` names the
 file explicitly.
 
@@ -47,10 +49,10 @@ No step on the Lean side beyond your usual `lake build`:
   qualified name matches a declaration inside the corresponding `namespace`, since either name
   may be a dotted suffix of the other. An unknown name is an error, an ambiguous one a warning.
 - **Checking it was compiled.** If the `.lean` file is newer than its compiled
-  `.lake/build/lib/lean/.../File.olean` (found from `project`), LaTeX warns that the code shown
-  may not be what Lean checked. After a successful `lake build`, the `.olean` is newer, so no
-  warning. If there is no `.olean` (for example, a copy of the file outside its project), LaTeX
-  only notes that it cannot check.
+  `.lake/build/lib/lean/.../File.olean` (found from `project`), or there is no `.olean`, the
+  quote's box is marked with a red **UNVERIFIED** badge (and LaTeX warns), because the code
+  shown may not be what Lean checked. After a successful `lake build`, the `.olean` is newer,
+  so nothing is marked. For copies of Lean files outside their project, set `verify=false`.
 
 All declarations named in one `\leanquote` go into one listing.
 
@@ -85,7 +87,7 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
-| `check` | true | warn if the `.lean` file is newer than its `.olean` (or, for exports, has changed since the export) |
+| `verify` | true | check that Lean compiled the code; if not, mark the quote UNVERIFIED and warn (old name: `check`) |
 | `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
 | any other key | | passed to `\lstinputlisting` (e.g. `basicstyle=\footnotesize\ttfamily`) |
 
@@ -150,6 +152,11 @@ or checks quoted code against the compiled module. Related work (details in the 
 - **Lean listings style:** [`lstlean.tex`](https://github.com/leanprover/lean4/blob/master/doc/latex/lstlean.tex).
 - The need was raised on the Lean Zulip by Eric Wieser in 2022
   ([MathemaTeX](https://leanprover-community.github.io/archive/stream/113488-general/topic/MathemaTeX.html)).
+
+## Acknowledgments
+
+The package and its documentation were produced with the help of Claude Opus 5.5 (Anthropic),
+working under the authors' direction.
 
 ## License
 
