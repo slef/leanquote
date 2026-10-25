@@ -13,12 +13,13 @@ one translate $t + P$:
 ```
 
 The prose stays in the paper, written as usual; the code is never retyped or pasted. If a name
-is misspelled, LaTeX stops with an error. If the Lean file has changed since it was exported,
-LaTeX warns that the paper may show stale code.
+is misspelled, LaTeX stops with an error. If an automatically selected export is stale,
+LaTeX warns and reads the current source instead. An explicitly selected export is a snapshot;
+if its source has changed, the quote is marked UNVERIFIED.
 
 It was written for papers that present a short, human-readable `Abstract.lean` (definitions and
 main theorem statements of a formalization, proved through a bridge to the full development),
-but works with any Lean 4 file.
+and can quote other Lean 4 files too; unusual layouts need the optional exporter.
 
 ## Usage
 
@@ -43,7 +44,7 @@ a file for just that call, without changing the default, and works without a pre
 `\leanquotefile`. A file must be supplied by one of these methods.
 `\leanquoteimports[options]` quotes the file's import block (the `module` and
 `[public] import` lines at its top); it can also be named `:imports` in a list, as in
-`\leanquote{:imports, Point}`. Both forms accept `file=...`.
+`\leanquote{:imports, Point}`. Both forms accept `file=...` and omit comments from imports.
 
 All public commands use the `\leanquote` prefix. The former `\leanfile` alias and
 `\leanfilequote{file}{names}` command were removed in v0.16; use `\leanquotefile{file}` and
@@ -55,20 +56,26 @@ No step on the Lean side beyond your usual `lake build`:
   (with any attribute lines, and the doc comment if `doc` is set), and continues while lines are
   blank, indented, or start with `|`, `termination_by`, `decreasing_by` or `deriving`. This
   matches the standard Lean layout. Names may be short (`Tiles`) or qualified (`TranslationTiling.Abstract.Tiles`); a
-  qualified name matches a declaration inside the corresponding `namespace`, since either name
-  may be a dotted suffix of the other. An unknown name is an error, an ambiguous one a warning.
+  qualified name matches a declaration inside the corresponding `namespace`. The requested name
+  must be the full name or a dotted suffix of it, including escaped components such as
+  `«A B».foo`. Nested comments and strings are skipped when
+  finding declarations, and namespace/section scope is tracked. An unknown name is an error,
+  an ambiguous short name a warning.
 - **What has Lean checked?** With `project` set, quotes get a red mark in the corner of their box
   (and a warning in the log) when they are not known to be fully checked:
   - **UNVERIFIED**: the `.lean` file is newer than its compiled `.olean`, or its last `lake build`
-    failed; with `verify=true`, also when there is no compiled file;
+    failed; an export's source/build is stale or its verification metadata is missing;
+    with `verify=true`, also when there is no compiled file;
   - **USES SORRY**: the declaration depends on `sorry`, anywhere in its dependencies (needs an export);
   - **SORRY IN FILE**: Lake's build log reports a `sorry` in the file (without an export);
   - **EXTRA AXIOMS**: the declaration depends on axioms beyond `propext`, `Classical.choice`,
     `Quot.sound`, e.g. via `native_decide` (needs an export).
 
-  By default (`verify=auto`), the code shown is thus what Lean last compiled successfully; with an
-  export, it is also known not to depend on `sorry` or non-standard axioms. Without an export, a
-  `sorry` in an imported file is not seen. `verify=false` turns the checks off.
+  When a compiled file is available, its timestamp is compared with the source. A current v2
+  export also checks axiom dependencies against its recorded Lake build fingerprint; rebuilding
+  an imported proof invalidates that fingerprint even if the quoted source is unchanged.
+  Without an export, a `sorry` in an imported file is not seen.
+  `verify=false` disables verification marks and axiom/build checks.
 
 All declarations named in one `\leanquote` go into one listing.
 
@@ -92,11 +99,16 @@ This builds each module and writes `.lake/build/leanquote/TranslationTiling/Abst
 (inside the build directory, so not tracked by git). From then on, `\leanquote` finds it
 automatically and uses Lean's exact declaration ranges, and the axioms each declaration depends
 on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the paper.
+The exporter asks Lake for the actual source and compiled-file paths, including custom source
+directories. It records the build fingerprint as well as the source text.
 If `Abstract.lean` is edited after the export, LaTeX warns and falls back to reading the
 `.lean` file directly, so the paper always shows the current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found, and an export can be given explicitly as
-`\leanquote[file=Abstract.leanquote]{...}`. The exporter is a single Lean file
-(`lean/LeanQuoteExport.lean`), run with `lake env lean --run`; nothing is added to your project.
+`\leanquote[file=Abstract.leanquote]{...}`. An explicit export deliberately shows its recorded
+snapshot: changed source or a different local build produces an UNVERIFIED mark. With no local
+build, `verify=auto` can use a v2 snapshot's recorded axioms; `verify=true` marks it unverified.
+Older v1 exports remain readable but are marked UNVERIFIED until regenerated.
+Nothing is added to your Lean project.
 
 ## Options
 
@@ -149,9 +161,13 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 
 ## What is and is not guaranteed
 
-- The code shown is the current text of the `.lean` file. With `project` set and no warning, that
-  file is older than its compiled `.olean`, so it is what Lean last compiled (assuming the build
-  succeeded, which is when Lake writes the `.olean`). LaTeX never compiles Lean itself.
+- Quotes of a `.lean` file show its current text, using layout rules unless an up-to-date export
+  supplies exact boundaries. Explicit `.leanquote` inputs show snapshots, with a warning and
+  UNVERIFIED mark when a changed source or local build is detected.
+- Local build checks rely on file timestamps and Lake's recorded build fingerprints; they are
+  not a substitute for running `lake build`. Without build artifacts, `verify=auto` cannot
+  establish the status of a local build; use `verify=true` to mark this case.
+  LaTeX never compiles Lean itself.
 - The default style typesets about a hundred of Lean's Unicode symbols as math, under pdfLaTeX,
   LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a monospace font that
   has them (LuaLaTeX, XeLaTeX).

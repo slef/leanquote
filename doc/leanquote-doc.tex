@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.16, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.17, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -78,7 +78,8 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \item[\cs{leanquoteimports}\texttt{[\meta{options}]}]
   typesets the import block of the current file: the \texttt{module} and
   \texttt{[public|private|meta] import} lines at its top, after any comment such as a copyright
-  header. The block can also be named \texttt{:imports} in a list of names, as in
+  header. Comments are omitted, including comments spanning several lines.
+  The block can also be named \texttt{:imports} in a list of names, as in
   \verb|\leanquote{:imports, Point}|. Both forms accept \opt{file=}\meta{path}.
 \item[\cs{leanquotesetup}\texttt{\{\meta{options}\}}]
   sets options for the rest of the document (or the current group).
@@ -99,8 +100,10 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 
 \noindent Names may be short (\texttt{Tiles}) or qualified
 (\texttt{TranslationTiling.Abstract.Tiles}). A qualified name matches a declaration inside the
-corresponding \texttt{namespace}: either name may be a dotted suffix of the other. An unknown name
-is an error; an ambiguous one is a warning, and the first match is used.
+corresponding \texttt{namespace}: the requested name must be the full name or a dotted suffix
+of it. Namespace and section scope are tracked, including escaped name components such as
+\texttt{«A B».foo}. An unknown name is an error; an ambiguous short name is a warning,
+and the first match is used.
 
 With \opt{proof=false}, theorems and lemmas are shown without their proofs, which the reader
 does not need in order to check the statement; definitions keep their bodies:
@@ -110,8 +113,10 @@ does not need in order to check the statement; definitions keep their bodies:
 \end{latexsrc}
 \leanquote[proof=false]{tiling_coRE_complete}
 
-\noindent The proof starts at the first \texttt{:=} outside brackets and \texttt{--} comments,
-so default values of parameters, such as \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
+\noindent The proof starts at the first \texttt{:=} outside brackets, string and character
+literals (including interpolation), line comments, and nested block comments.
+Default parameter values, such as
+\texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
 
 With the \opt{doc} option, the doc comment is included:
@@ -163,9 +168,11 @@ Lean code. A declaration starts at a line in column~0 of the form
 \end{center}
 where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \texttt{abbrev},
 \texttt{structure}, \texttt{inductive}, \texttt{instance}, \texttt{class}, \texttt{axiom},
-\texttt{opaque}, and the modifiers are \texttt{private}, \texttt{protected},
-\texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}.
+\texttt{opaque}, and the modifiers are \texttt{public}, \texttt{private}, \texttt{protected},
+\texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}, \texttt{meta}.
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
+Nested comments, escaped and raw strings, and character literals are skipped when recognizing
+declarations. Comments are omitted from the import block, including inline and multiline comments.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
@@ -184,7 +191,8 @@ Mark & Meaning \\
 \midrule
 \textsc{unverified} & the \texttt{.lean} file is newer than its compiled \texttt{.olean} (edited
   since the last build), or its last \texttt{lake build} failed (Lake deletes the \texttt{.olean}
-  but keeps its \texttt{.trace}); with \opt{verify=true}, also when there is no compiled file \\
+  but keeps its \texttt{.trace}); an export's source or build has changed, or it lacks
+  verification metadata; with \opt{verify=true}, also when there is no compiled file \\
 \textsc{uses sorry} & the declaration depends on \texttt{sorry}, anywhere in its dependencies
   (needs an export, Section~\ref{sec:export}) \\
 \textsc{sorry in file} & Lake's build log for the file reports a \texttt{sorry} (without an
@@ -197,9 +205,10 @@ Mark & Meaning \\
 \end{center}
 
 \noindent The compiled files are looked for under \opt{project}
-(\texttt{.lake/build/lib/lean/\dots}). In short: by default, the code shown is what Lean last
-compiled successfully; with an export, it is also known not to depend on \texttt{sorry} or on
-non-standard axioms.
+(\texttt{.lake/build/lib/lean/\dots}), or at the actual artifact path recorded in a v2 export.
+When a compiled file is present, its timestamp is compared with the source. An export's
+axiom list is checked against the dependency fingerprint of its Lake build: if an imported
+proof changes and the module is rebuilt, re-export before relying on its axiom information.
 
 The \opt{verify} option chooses how strict to be:
 \begin{center}
@@ -268,10 +277,18 @@ depends on (as \texttt{\#print axioms} reports them), which gives the \textsc{us
 \textsc{extra axioms} marks. The export also records the source as compiled. If the
 \texttt{.lean} file is edited afterwards, the package warns and falls back to reading the
 \texttt{.lean} file directly, so the document always shows the current code.
-The exporter is a single Lean file (\texttt{lean/LeanQuoteExport.lean}) run with
-\texttt{lake env lean --run}; nothing is added to the Lean project.
+The exporter runs through \texttt{lake env lean --run}; nothing is added to the Lean project.
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
 explicitly with \verb|\leanquote[file=Abstract.leanquote]{...}|.
+An explicitly selected export deliberately shows its recorded snapshot; changed source or a
+different local build produces a warning and an \textsc{unverified} mark. When no local build
+is available, \opt{verify=auto} uses a v2 snapshot's recorded axioms; \opt{verify=true} marks
+it unverified.
+
+The exporter resolves source and compiled paths through Lake, including custom source/build
+directories. Version~2 records the build fingerprint and prefixes every code line, so literal
+format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
+but are marked \textsc{unverified}; re-run the exporter to upgrade them.
 
 \section{Colours, engines and symbols}
 
@@ -320,8 +337,9 @@ With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
 \begin{itemize}
 \item Without an export, declaration boundaries follow the layout rules above; code that puts
   continuation lines in column~0 (other than the listed keywords) is cut short.
-\item Namespaces are not tracked: two declarations with the same short name in different
-  namespaces give an ambiguity warning; quote them with a name that distinguishes them.
+\item The source fallback recognizes standard namespace/section layout and declaration headers,
+  not arbitrary Lean syntax extensions. Use an export for commands introduced by macros or
+  declarations that do not follow the documented layout.
 \item The listings language is called \texttt{leanquote-lean}, so that a document's own
   \verb|\lstdefinelanguage{Lean4}| does not interfere with it.
 \item The compiled check relies on file modification dates; copying a project without
@@ -371,6 +389,10 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
+\item[0.17 (2026-10-26)] Lexical source/import/proof scanning and namespace-aware names;
+  v2 exports with exact ranges, safe payloads and build provenance; stricter verification
+  and listings fixes. Regression tests and CI; source-only manual in Git, built PDFs
+  in CTAN archives and release assets.
 \item[0.16 (2026-10-26)] All public commands use the \cs{leanquote} prefix.
   \opt{file=} selects a file for a quote or its imports; \cs{leanfile} and
   \cs{leanfilequote} removed.
