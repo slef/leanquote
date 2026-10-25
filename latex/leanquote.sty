@@ -276,10 +276,12 @@
 \cs_generate_variant:Nn \regex_match:nnT { nV }
 \cs_generate_variant:Nn \msg_warning:nnn { nnV }
 \cs_generate_variant:Nn \msg_warning:nnnn { nnVV }
+\bool_new:N \l__leanquote_hasaxioms_bool
 \cs_new_protected:Npn \__leanquote_from_export:n #1
   {
     \bool_set_false:N \l__leanquote_inside_bool
     \bool_set_false:N \l__leanquote_found_bool
+    \bool_set_false:N \l__leanquote_hasaxioms_bool
     \int_zero:N \l__leanquote_matches_int
     \ior_open:Nn \g__leanquote_ior {#1}
     \ior_str_map_inline:Nn \g__leanquote_ior
@@ -289,15 +291,27 @@
             \str_if_eq:nnTF {##1} { @@end }
               { \bool_set_false:N \l__leanquote_inside_bool }
               {
-                \regex_match:nnTF { \A @@axioms } {##1}
-                  { \bool_if:NT \l_leanquote_check_bool { \__leanquote_axioms:n {##1} } }
+                \regex_match:nnTF { \A @@axioms (\s | \Z) } {##1}
                   {
-                    \regex_match:nnTF { \A @@doc\x{20} } {##1}
+                    \bool_set_true:N \l__leanquote_hasaxioms_bool
+                    \bool_lazy_and:nnT { \l_leanquote_check_bool } { \l__leanquote_export_axioms_bool }
+                      { \__leanquote_axioms:n {##1} }
+                  }
+                  {
+                    \regex_match:nnTF { \A @@doc (\x{20} | \Z) } {##1}
                       {
                         \bool_if:NT \l_leanquote_doc_bool
                           { \seq_put_right:Ne \l__leanquote_buf_seq { \str_range:nnn {##1} {7} {-1} } }
                       }
-                      { \__leanquote_write:n {##1} }
+                      {
+                        \str_if_eq:VnTF \l__leanquote_export_version_str {2}
+                          {
+                            \regex_match:nnTF { \A @@code (\x{20} | \Z) } {##1}
+                              { \seq_put_right:Ne \l__leanquote_buf_seq { \str_range:nnn {##1} {8} {-1} } }
+                              { \msg_error:nnn { leanquote } { export-payload } {#1} }
+                          }
+                          { \__leanquote_write:n {##1} }
+                      }
                   }
               }
           }
@@ -314,6 +328,12 @@
           }
       }
     \ior_close:N \g__leanquote_ior
+    \bool_lazy_all:nT
+      { { \l_leanquote_check_bool } { \l__leanquote_found_bool } { ! \l__leanquote_hasaxioms_bool } }
+      {
+        \bool_set_true:N \l__leanquote_unverified_bool
+        \msg_warning:nnnV { leanquote } { export-axioms } {#1} \l__leanquote_name_str
+      }
   }
 
 % ---------------------------------------------------------------- .lean files
@@ -577,85 +597,170 @@
 \cs_generate_variant:Nn \prop_gput:Nnn { NnV }
 \cs_generate_variant:Nn \str_if_eq_p:nn { Vn }
 
-% ---------------------------------------------------------------- freshness check
-% Compare the source text stored in an export (`@@src` lines) with the current source file,
-% found at `root` + the `@@source` path. Done once per export per run.
-\str_new:N \l__leanquote_stored_str
-\str_new:N \l__leanquote_current_str
+% ---------------------------------------------------------------- export metadata and freshness
+% Source snapshots are sequences: no character can collide with a line separator.
+\seq_new:N \l__leanquote_stored_seq
+\seq_new:N \l__leanquote_current_seq
+\seq_new:N \l__leanquote_metadata_seq
 \str_new:N \l__leanquote_srcpath_str
-\cs_new_protected:Npn \__leanquote_check:n #1
+\str_new:N \l__leanquote_recorded_olean_str
+\str_new:N \l__leanquote_recorded_trace_str
+\str_new:N \l__leanquote_export_version_str
+\str_new:N \l__leanquote_trace_contents_str
+\bool_new:N \l__leanquote_fresh_bool
+\bool_new:N \l__leanquote_export_axioms_bool
+\str_new:N \l__leanquote_export_str
+\bool_new:N \l__leanquote_useexport_bool
+\msg_new:nnn { leanquote } { export-build }
+  { Export~#1~does~not~match~the~current~compiled~build~or~lacks~build~provenance~
+    (the~quote~is~marked~UNVERIFIED).~Rebuild~and~run~leanquote-export. }
+\msg_new:nnn { leanquote } { export-axioms }
+  { Export~#1~has~no~axiom~information~for~#2~
+    (the~quote~is~marked~UNVERIFIED).~Run~leanquote-export. }
+\msg_new:nnn { leanquote } { export-version }
+  { File~#1~is~not~a~supported~leanquote~export~(versions~1~and~2). }
+\msg_new:nnn { leanquote } { export-payload }
+  { Malformed~version~2~export~#1:~expected~prefixed~code~or~metadata.~Run~leanquote-export. }
+\cs_generate_variant:Nn \regex_extract_once:nnNTF { nV }
+
+\cs_new_protected:Npn \__leanquote_load_export:n #1
   {
-    \prop_if_in:NnF \g__leanquote_checked_prop {#1}
+    \seq_clear:N \l__leanquote_stored_seq
+    \str_clear:N \l__leanquote_srcpath_str
+    \str_clear:N \l__leanquote_recorded_olean_str
+    \str_clear:N \l__leanquote_recorded_trace_str
+    \str_clear:N \l__leanquote_export_version_str
+    \ior_open:Nn \g__leanquote_ior {#1}
+    \ior_str_map_inline:Nn \g__leanquote_ior
       {
-        \prop_gput:Nnn \g__leanquote_checked_prop {#1} { }
-        \str_clear:N \l__leanquote_stored_str
-        \str_clear:N \l__leanquote_srcpath_str
-        \ior_open:Nn \g__leanquote_ior {#1}
-        \ior_str_map_inline:Nn \g__leanquote_ior
+        \regex_extract_once:nnNT { \A @@leanquote-export \s+ ([12]) \Z }
+          {##1} \l__leanquote_metadata_seq
+          { \str_set:Ne \l__leanquote_export_version_str { \seq_item:Nn \l__leanquote_metadata_seq {2} } }
+        \regex_match:nnT { \A @@src (\x{20} | \Z) } {##1}
+          { \seq_put_right:Ne \l__leanquote_stored_seq { \str_range:nnn {##1} {7} {-1} } }
+        \regex_match:nnT { \A @@source\x{20} } {##1}
+          { \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \str_range:nnn {##1} {10} {-1} } }
+        \regex_match:nnT { \A @@olean\x{20} } {##1}
+          { \str_set:Ne \l__leanquote_recorded_olean_str { \str_range:nnn {##1} {9} {-1} } }
+        \regex_match:nnT { \A @@trace\x{20} } {##1}
+          { \str_set:Ne \l__leanquote_recorded_trace_str { \str_range:nnn {##1} {9} {-1} } }
+      }
+    \ior_close:N \g__leanquote_ior
+    \str_if_empty:NT \l__leanquote_export_version_str
+      { \msg_error:nnn { leanquote } { export-version } {#1} }
+    \tl_if_blank:VF \l_leanquote_source_tl
+      { \str_set:NV \l__leanquote_srcpath_str \l_leanquote_source_tl }
+  }
+\cs_generate_variant:Nn \__leanquote_load_export:n { V }
+
+\cs_new_protected:Npn \__leanquote_compare_source:n #1
+  {
+    \seq_clear:N \l__leanquote_current_seq
+    \ior_open:Nn \g__leanquote_ior {#1}
+    \ior_str_map_inline:Nn \g__leanquote_ior
+      { \seq_put_right:Nn \l__leanquote_current_seq {##1} }
+    \ior_close:N \g__leanquote_ior
+    \bool_set:Nn \l__leanquote_fresh_bool
+      { \tl_if_eq_p:NN \l__leanquote_stored_seq \l__leanquote_current_seq }
+  }
+\cs_generate_variant:Nn \__leanquote_compare_source:n { V }
+
+% A v2 export records the actual Lake artifact, including custom source/build layouts.
+\cs_new_protected:Npn \__leanquote_export_olean:
+  {
+    \bool_lazy_and:nnT
+      { \tl_if_blank_p:V \l_leanquote_olean_tl }
+      { ! \str_if_empty_p:N \l__leanquote_recorded_olean_str }
+      {
+        \tl_set:Ne \l_leanquote_olean_tl
           {
-            \regex_match:nnT { \A @@src\x{20} } {##1}
-              { \str_put_right:Ne \l__leanquote_stored_str { \str_range:nnn {##1} {7} {-1} | } }
-            \regex_match:nnT { \A @@src \Z } {##1}
-              { \str_put_right:Nn \l__leanquote_stored_str { | } }
-            \regex_match:nnT { \A @@source\x{20} } {##1}
-              { \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \str_range:nnn {##1} {10} {-1} } }
-          }
-        \ior_close:N \g__leanquote_ior
-        \tl_if_blank:VF \l_leanquote_source_tl
-          { \str_set:NV \l__leanquote_srcpath_str \l_leanquote_source_tl }
-        \file_if_exist:nT { \l__leanquote_srcpath_str }
-          {
-            \str_clear:N \l__leanquote_current_str
-            \ior_open:Nn \g__leanquote_ior { \l__leanquote_srcpath_str }
-            \ior_str_map_inline:Nn \g__leanquote_ior
-              { \str_put_right:Nn \l__leanquote_current_str { ##1 | } }
-            \ior_close:N \g__leanquote_ior
-            \str_if_eq:NNF \l__leanquote_stored_str \l__leanquote_current_str
-              { \msg_warning:nnVn { leanquote } { stale } \l__leanquote_srcpath_str {#1} }
+            \tl_if_blank:VTF \l_leanquote_project_tl
+              { \l_leanquote_root_tl } { \l_leanquote_project_tl }
+            \l__leanquote_recorded_olean_str
           }
       }
   }
 
-% Is the export #1 up to date with the source #2? Sets \l__leanquote_fresh_bool; cached per run.
-\bool_new:N \l__leanquote_fresh_bool
-\prop_new:N \g__leanquote_fresh_prop
-\cs_new_protected:Npn \__leanquote_export_fresh:nn #1#2
+% Validate the dependency fingerprint from the build that supplied the axiom list.
+% With no local build, auto mode treats the export as a portable snapshot.
+\cs_new_protected:Npn \__leanquote_check_export_build:n #1
   {
-    \prop_get:NnNTF \g__leanquote_fresh_prop {#1} \l_tmpb_tl
-      { \bool_set:Nn \l__leanquote_fresh_bool { \str_if_eq_p:Vn \l_tmpb_tl { 1 } } }
+    \bool_set_false:N \l__leanquote_export_axioms_bool
+    \bool_lazy_all:nTF
       {
-        \str_clear:N \l__leanquote_stored_str
-        \ior_open:Nn \g__leanquote_ior {#1}
-        \ior_str_map_inline:Nn \g__leanquote_ior
+        { \str_if_eq_p:Vn \l__leanquote_export_version_str {2} }
+        { ! \str_if_empty_p:N \l__leanquote_recorded_olean_str }
+        { ! \str_if_empty_p:N \l__leanquote_recorded_trace_str }
+      }
+      {
+        \__leanquote_export_olean:
+        \file_if_exist:VTF \l_leanquote_olean_tl
           {
-            \regex_match:nnT { \A @@src\x{20} } {##1}
-              { \str_put_right:Ne \l__leanquote_stored_str { \str_range:nnn {##1} {7} {-1} | } }
-            \regex_match:nnT { \A @@src \Z } {##1}
-              { \str_put_right:Nn \l__leanquote_stored_str { | } }
+            \str_set:Ne \l__leanquote_trace_str
+              { \str_range:Nnn \l_leanquote_olean_tl {1} {-7} .trace }
+            \file_if_exist:VT \l__leanquote_trace_str
+              {
+                \str_clear:N \l__leanquote_trace_contents_str
+                \ior_open:NV \g__leanquote_ior \l__leanquote_trace_str
+                \ior_str_map_inline:Nn \g__leanquote_ior
+                  { \str_put_right:Nn \l__leanquote_trace_contents_str { ##1 ~ } }
+                \ior_close:N \g__leanquote_ior
+                \regex_extract_once:nVNTF { "depHash" \s* : \s* "([^"]+)" }
+                  \l__leanquote_trace_contents_str \l__leanquote_metadata_seq
+                  {
+                    \str_if_eq:eeT
+                      { \seq_item:Nn \l__leanquote_metadata_seq {2} }
+                      { \l__leanquote_recorded_trace_str }
+                      { \bool_set_true:N \l__leanquote_export_axioms_bool }
+                  }
+                  { }
+              }
           }
-        \ior_close:N \g__leanquote_ior
-        \str_clear:N \l__leanquote_current_str
-        \ior_open:Nn \g__leanquote_ior {#2}
-        \ior_str_map_inline:Nn \g__leanquote_ior
-          { \str_put_right:Nn \l__leanquote_current_str { ##1 | } }
-        \ior_close:N \g__leanquote_ior
-        \str_if_eq:NNTF \l__leanquote_stored_str \l__leanquote_current_str
           {
-            \bool_set_true:N \l__leanquote_fresh_bool
-            \prop_gput:Nnn \g__leanquote_fresh_prop {#1} { 1 }
-            \msg_info:nnnn { leanquote } { using-export } {#2} {#1}
-          }
-          {
-            \bool_set_false:N \l__leanquote_fresh_bool
-            \prop_gput:Nnn \g__leanquote_fresh_prop {#1} { 0 }
-            \msg_warning:nnnn { leanquote } { stale-fallback } {#2} {#1}
+            \str_if_eq:VnF \l_leanquote_verify_tl { true }
+              { \bool_set_true:N \l__leanquote_export_axioms_bool }
           }
       }
+      { }
+    \bool_if:NF \l__leanquote_export_axioms_bool
+      {
+        \bool_set_true:N \l__leanquote_unverified_bool
+        \msg_warning:nnn { leanquote } { export-build } {#1}
+      }
+  }
+\cs_generate_variant:Nn \__leanquote_check_export_build:n { V }
+
+% Explicit exports deliberately show their snapshot. A changed/missing source is
+% marked in strict mode; a known stale snapshot is marked in auto mode too.
+\cs_new_protected:Npn \__leanquote_check:n #1
+  {
+    \__leanquote_load_export:n {#1}
+    \file_if_exist:VTF \l__leanquote_srcpath_str
+      {
+        \__leanquote_compare_source:V \l__leanquote_srcpath_str
+        \bool_if:NF \l__leanquote_fresh_bool
+          {
+            \bool_set_true:N \l__leanquote_unverified_bool
+            \msg_warning:nnVn { leanquote } { stale } \l__leanquote_srcpath_str {#1}
+          }
+      }
+      {
+        \str_if_eq:VnT \l_leanquote_verify_tl { true }
+          { \bool_set_true:N \l__leanquote_unverified_bool }
+      }
+    \__leanquote_check_export_build:n {#1}
+  }
+
+\cs_new_protected:Npn \__leanquote_export_fresh:nn #1#2
+  {
+    \__leanquote_load_export:n {#1}
+    \__leanquote_compare_source:n {#2}
+    \bool_if:NTF \l__leanquote_fresh_bool
+      { \msg_info:nnnn { leanquote } { using-export } {#2} {#1} }
+      { \msg_warning:nnnn { leanquote } { stale-fallback } {#2} {#1} }
   }
 \cs_generate_variant:Nn \__leanquote_export_fresh:nn { VV }
 \cs_generate_variant:Nn \__leanquote_from_export:n { V }
-\str_new:N \l__leanquote_export_str
-\bool_new:N \l__leanquote_useexport_bool
 
 % ---------------------------------------------------------------- main command
 \cs_new_protected:Npn \__leanquote_typeset:nn #1#2
@@ -671,14 +776,12 @@
       { \str_set:Ne \l__leanquote_file_str { \l_leanquote_project_tl #1 } }
     \file_if_exist:VF \l__leanquote_file_str
       { \msg_error:nnV { leanquote } { no-file } \l__leanquote_file_str }
-    \bool_lazy_and:nnT
-      { \l_leanquote_check_bool }
-      { \str_if_eq_p:ee { \str_range:Nnn \l__leanquote_file_str {-10} {-1} } { .leanquote } }
-      { \__leanquote_check:n {#1} }
-    \bool_lazy_and:nnT
-      { \l_leanquote_check_bool }
-      { \str_if_eq_p:ee { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean } }
-      { \exp_args:NV \__leanquote_check_compiled:nn \l__leanquote_file_str {#1} }
+    \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-10} {-1} } { .leanquote }
+      {
+        \bool_if:NTF \l_leanquote_check_bool
+          { \__leanquote_check:n {#1} }
+          { \__leanquote_load_export:n {#1} }
+      }
     \bool_set_false:N \l__leanquote_useexport_bool
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
       {
@@ -693,7 +796,16 @@
           {
             \__leanquote_export_fresh:VV \l__leanquote_export_str \l__leanquote_file_str
             \bool_set_eq:NN \l__leanquote_useexport_bool \l__leanquote_fresh_bool
+            \__leanquote_export_olean:
           }
+      }
+    \bool_lazy_and:nnT
+      { \l_leanquote_check_bool }
+      { \str_if_eq_p:ee { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean } }
+      {
+        \exp_args:NV \__leanquote_check_compiled:nn \l__leanquote_file_str {#1}
+        \bool_if:NT \l__leanquote_useexport_bool
+          { \__leanquote_check_export_build:V \l__leanquote_export_str }
       }
     \int_gincr:N \g__leanquote_count_int
     \str_set:Ne \l__leanquote_out_str

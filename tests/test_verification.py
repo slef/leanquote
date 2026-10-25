@@ -1,6 +1,7 @@
 import unittest
 
 from tex_support import TexTestCase
+from export_support import export_files
 
 
 class VerificationTests(TexTestCase):
@@ -34,13 +35,9 @@ class VerificationTests(TexTestCase):
             ("sorryAx", "USES SORRY"),
         ]:
             with self.subTest(axioms=axioms):
-                export = (
-                    "@@leanquote-export 1\n@@begin bad\n"
-                    f"@@axioms {axioms}\n"
-                    "theorem bad : True := by trivial\n@@end\n"
-                )
                 _, output = self.compile_tex(
-                    {"A.leanquote": export}, r"\leanquote[file=A.leanquote]{bad}",
+                    export_files("theorem bad : True := by trivial\n", name="bad", axioms=axioms),
+                    r"\leanquote[file=A.leanquote]{bad}",
                 )
                 marks = [line for line in output.splitlines() if line.startswith("LEANQUOTE-BADGE:")]
                 self.assertEqual(marks, [] if badge is None else ["LEANQUOTE-BADGE:" + badge])
