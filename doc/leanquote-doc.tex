@@ -1,12 +1,13 @@
 \documentclass[11pt]{article}
 \usepackage[T1]{fontenc}
-\usepackage[margin=1.1in]{geometry}
+\usepackage[margin=1in]{geometry}
 \usepackage{lmodern}
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{leanquote}
-% Fit the example's 85--90-column Lean lines within the manual's text width.
-\leanquotesetup{project=../example/,basicstyle=\ttfamily\footnotesize}
+% The example's doc-comment lines fit this width at 9.5pt.
+\leanquotesetup{project=../example/,
+  basicstyle=\ttfamily\fontsize{9.5}{11.5}\selectfont}
 
 \lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
