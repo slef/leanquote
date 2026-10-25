@@ -5,8 +5,7 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{leanquote}
-% The example file is a copy outside its Lake project, so it cannot be verified here.
-\leanquotesetup{project=../example/, verify=false}
+\leanquotesetup{project=../example/}
 
 \lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
@@ -19,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.8, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.9, 2026-10-25\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -108,12 +107,18 @@ Option & Default & Meaning \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
 \opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
-\opt{verify} & true & check that Lean compiled the code; if not, mark it \textsc{unverified} \\
+\opt{verify=}\meta{mode} & \texttt{auto} & \texttt{auto}, \texttt{true} or \texttt{false}; see Section~\ref{sec:compiled} \\
 \opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
 any other key & & passed to \cs{lstinputlisting} \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+\paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
+each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
+The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
+always be accompanied by a trademark symbol; for other logos, redefine
+\cs{leanquotelogomark} as empty. The Lean logo is not included in the package.
 
 \section{How declarations are found}
 
@@ -132,35 +137,59 @@ The declaration continues while lines are blank, indented, or start with \texttt
 dropped. This matches the layout used by Mathlib and by most Lean code, including
 \texttt{match} alternatives and \texttt{inductive} constructors.
 
-\section{Was the code compiled?}
+\section{Was the code compiled?}\label{sec:compiled}
 
 \LaTeX{} does not run Lean. But Lake writes a module's compiled file
 (\texttt{.lake/build/lib/lean/\dots/File.olean}) only when it builds successfully, so after a
 successful \texttt{lake build} the \texttt{.olean} is newer than its \texttt{.lean} source.
 With \opt{project} set to the root of the Lake project, \textsf{leanquote} compares the two
-modification dates. If the source is newer, or if there is no compiled file to compare with,
-the quote is marked \textsc{unverified} in the corner of its box, since a warning in the log is
-easily missed:
+modification dates. If the source is newer, Lean has not compiled the code shown, and the quote
+is marked \textsc{unverified} in the corner of its box, since a warning in the log is easily
+missed. Without a box, a red \textsc{unverified} line appears above the code.
 
-\leanquote[verify]{Adjacent}
+The \opt{verify} option chooses what happens:
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+& \texttt{.olean} newer (compiled) & \texttt{.olean} older (stale) & no \texttt{.olean} \\
+\midrule
+\opt{verify=auto} (default) & nothing & \textsc{unverified} & note in the log \\
+\opt{verify=true} (or just \opt{verify}) & nothing & \textsc{unverified} & \textsc{unverified} \\
+\opt{verify=false} & nothing & nothing & nothing \\
+\bottomrule
+\end{tabular}
+\end{center}
+The default catches the mistake that matters: editing the Lean file and recompiling the paper
+without running \texttt{lake build}. Where no compiled file is available (see
+Section~\ref{sec:publishing}), it stays silent; \opt{verify=true} marks those quotes too:
 
-\noindent (Here the example file has no compiled \texttt{.olean}.) Without a box, a red
-\textsc{unverified} line appears above the code. The log also explains the problem:
+\leanquote[verify=true]{Adjacent}
+
+\noindent (The example file shipped with the package has no compiled \texttt{.olean}.)
+The log explains each mark:
 \begin{latexsrc}
 Package leanquote Warning: ../lean/TranslationTiling/Abstract.lean is newer
 (leanquote)  than its compiled file ... The code shown may not be what Lean
 (leanquote)  checked (the quote is marked UNVERIFIED): run lake build.
 \end{latexsrc}
-For a copy of a Lean file outside its project, which cannot be checked, set \opt{verify=false}
-to turn off both the mark and the warning; the old name \opt{check} is also accepted.
-The mark's appearance can be changed by redefining \cs{leanquoteunverifiedbadge} (in the box)
-and \cs{leanquoteunverifiedtext} (without a box).
+The old option name \opt{check} is also accepted. The mark's appearance can be changed by
+redefining \cs{leanquoteunverifiedbadge} (in the box) and \cs{leanquoteunverifiedtext} (without
+a box).
 
-\paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
-each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
-The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
-always be accompanied by a trademark symbol; for other logos, redefine
-\cs{leanquotelogomark} as empty. The Lean logo is not included in the package.
+\section{Publishing: arXiv, CI, Overleaf}\label{sec:publishing}
+
+arXiv compiles the \LaTeX{} source itself, and so do continuous-integration builds and online
+editors such as Overleaf, usually without a Lean build. There, the \texttt{.lean} files are
+read as usual (include them, and \texttt{leanquote.sty}, in the upload), but there is no
+\texttt{.olean} to compare with, so with the default \opt{verify=auto} nothing is marked: those
+builds simply cannot check. The check happens where Lean is built:
+\begin{enumerate}
+\item run \texttt{lake build}, then compile the paper locally, and make sure no quote is
+  marked \textsc{unverified} and the log has no \textsf{leanquote} warning;
+\item then upload, or push to the CI or online editor.
+\end{enumerate}
+If a CI pipeline does build Lean before the paper, set \opt{verify=true} there, so that a
+missing compiled file is noticed as well.
 
 \section{Optional: exact boundaries from Lean}
 
@@ -260,7 +289,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.8 (2026-10-25)] Trademark mark after the logo (\cs{leanquotelogomark}).
+\item[0.9 (2026-10-25)] \opt{verify=auto} (new default), \opt{true}, \opt{false}; publishing section.
+\item[0.8] Trademark mark after the logo (\cs{leanquotelogomark}).
 \item[0.7] \textsc{unverified} mark and \opt{verify} option; \cs{leanquotefile} and a safe \cs{leanfile}; listings language renamed \texttt{leanquote-lean}.
 \item[0.6] Timestamps compared with \LaTeX3's \verb|\file_compare_timestamp|; related tools.
 \item[0.5] Lua\LaTeX{} and Xe\LaTeX{} support; documentation.

@@ -16,7 +16,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.8}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-25}{0.9}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -26,6 +26,8 @@
 
 % ---------------------------------------------------------------- options
 \tl_new:N \l__leanquote_lst_tl
+\tl_new:N \l_leanquote_verify_tl
+\bool_new:N \l_leanquote_check_bool
 \keys_define:nn { leanquote }
   {
     root  .tl_set:N   = \l_leanquote_root_tl ,
@@ -40,11 +42,12 @@
     box   .initial:n  = true ,
     logo  .tl_set:N   = \l_leanquote_logo_tl ,
     logo  .initial:n  = {} ,
-    check .bool_set:N = \l_leanquote_check_bool ,
-    check .default:n  = true ,
-    check .initial:n  = true ,
-    verify .bool_set:N = \l_leanquote_check_bool ,
+    verify .choices:nn = { true , false , auto }
+      { \tl_set_eq:NN \l_leanquote_verify_tl \l_keys_choice_tl } ,
     verify .default:n  = true ,
+    verify .initial:n  = auto ,
+    check  .meta:n     = { verify = #1 } ,
+    check  .default:n  = true ,
     source .tl_set:N  = \l_leanquote_source_tl ,
     source .initial:n = {} ,
     project .tl_set:N  = \l_leanquote_project_tl ,
@@ -78,8 +81,10 @@
     re-run~leanquote-export~for~exact~declaration~boundaries. }
 \msg_new:nnn { leanquote } { no-olean }
   { No~compiled~file~#2~for~#1,~so~leanquote~cannot~check~that~Lean~compiled~it~
-    (the~quote~is~marked~UNVERIFIED).~Set~project~to~the~root~of~its~Lake~project,~
-    olean~to~the~compiled~file,~or~verify=false. }
+    (verify=true:~the~quote~is~marked~UNVERIFIED).~Set~project~to~the~root~of~its~Lake~
+    project~or~olean~to~the~compiled~file,~or~use~verify=auto. }
+\msg_new:nnn { leanquote } { no-olean-auto }
+  { No~compiled~file~#2~for~#1;~leanquote~cannot~check~it~here~(verify=auto). }
 
 \cs_generate_variant:Nn \msg_warning:nnnn { nnnV , nnVn }
 \cs_generate_variant:Nn \msg_error:nnn { nnV }
@@ -265,10 +270,11 @@
 % Compare modification dates of a `.lean` file and its compiled `.olean` (once per file per run).
 \str_new:N \l__leanquote_olean_str
 \bool_new:N \l__leanquote_unverified_bool
+\tl_new:N \l__leanquote_status_tl
 \cs_new_protected:Npn \__leanquote_check_compiled:nn #1#2
   {% #1 = source path as read, #2 = path relative to the Lake project root
-    \prop_get:NnNTF \g__leanquote_checked_prop {#1} \l_tmpa_tl
-      { \bool_set:Nn \l__leanquote_unverified_bool { \str_if_eq_p:Vn \l_tmpa_tl { 0 } } }
+    % Status per file, computed once: s = stale (source newer than .olean), o = ok, n = no .olean.
+    \prop_get:NnNF \g__leanquote_checked_prop {#1} \l__leanquote_status_tl
       {
         \tl_if_blank:VTF \l_leanquote_olean_tl
           {
@@ -276,18 +282,36 @@
               { \l_leanquote_project_tl .lake/build/lib/lean/ \str_range:nnn {#2} {1} {-6} .olean }
           }
           { \str_set:NV \l__leanquote_olean_str \l_leanquote_olean_tl }
-        \bool_set_true:N \l__leanquote_unverified_bool
         \file_if_exist:VTF \l__leanquote_olean_str
           {
             \file_compare_timestamp:nNnTF {#1} > { \l__leanquote_olean_str }
-              { \msg_warning:nnnV { leanquote } { uncompiled } {#1} \l__leanquote_olean_str }
-              { \bool_set_false:N \l__leanquote_unverified_bool }
+              {
+                \tl_set:Nn \l__leanquote_status_tl { s }
+                \msg_warning:nnnV { leanquote } { uncompiled } {#1} \l__leanquote_olean_str
+              }
+              { \tl_set:Nn \l__leanquote_status_tl { o } }
           }
-          { \msg_warning:nnnV { leanquote } { no-olean } {#1} \l__leanquote_olean_str }
-        \prop_gput:Nne \g__leanquote_checked_prop {#1}
-          { \bool_if:NTF \l__leanquote_unverified_bool { 0 } { 1 } }
+          {
+            \tl_set:Nn \l__leanquote_status_tl { n }
+            \str_if_eq:VnTF \l_leanquote_verify_tl { true }
+              { \msg_warning:nnnV { leanquote } { no-olean } {#1} \l__leanquote_olean_str }
+              { \msg_info:nnnV { leanquote } { no-olean-auto } {#1} \l__leanquote_olean_str }
+          }
+        \prop_gput:NnV \g__leanquote_checked_prop {#1} \l__leanquote_status_tl
       }
+    \str_case:VnF \l__leanquote_status_tl
+      {
+        { s } { \bool_set_true:N \l__leanquote_unverified_bool }
+        { n }
+          {
+            \str_if_eq:VnT \l_leanquote_verify_tl { true }
+              { \bool_set_true:N \l__leanquote_unverified_bool }
+          }
+      }
+      { }
   }
+\cs_generate_variant:Nn \str_case:nnF { Vn }
+\cs_generate_variant:Nn \prop_gput:Nnn { NnV }
 \cs_generate_variant:Nn \str_if_eq_p:nn { Vn }
 
 % ---------------------------------------------------------------- freshness check
@@ -374,6 +398,7 @@
 \cs_new_protected:Npn \__leanquote_typeset:nn #1#2
   {
     \bool_set_false:N \l__leanquote_unverified_bool
+    \bool_set:Nn \l_leanquote_check_bool { ! \str_if_eq_p:Vn \l_leanquote_verify_tl { false } }
     \str_set:Nn \l__leanquote_file_str {#1}
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
       { \str_set:Ne \l__leanquote_file_str { \l_leanquote_project_tl #1 } }

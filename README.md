@@ -48,13 +48,21 @@ No step on the Lean side beyond your usual `lake build`:
   matches the standard Lean layout. Names may be short (`Tiles`) or qualified (`TranslationTiling.Abstract.Tiles`); a
   qualified name matches a declaration inside the corresponding `namespace`, since either name
   may be a dotted suffix of the other. An unknown name is an error, an ambiguous one a warning.
-- **Checking it was compiled.** If the `.lean` file is newer than its compiled
-  `.lake/build/lib/lean/.../File.olean` (found from `project`), or there is no `.olean`, the
-  quote's box is marked with a red **UNVERIFIED** badge (and LaTeX warns), because the code
-  shown may not be what Lean checked. After a successful `lake build`, the `.olean` is newer,
-  so nothing is marked. For copies of Lean files outside their project, set `verify=false`.
+- **Checking it was compiled.** With `project` set, if the `.lean` file is newer than its compiled
+  `.lake/build/lib/lean/.../File.olean`, the code shown is not what Lean last compiled: the
+  quote's box gets a red **UNVERIFIED** badge (and LaTeX warns), so you notice that you forgot
+  `lake build`. `verify=auto` (the default) does this and stays silent when there is no `.olean`
+  to compare with (arXiv, CI, Overleaf); `verify=true` also marks quotes without an `.olean`;
+  `verify=false` turns the check off.
 
 All declarations named in one `\leanquote` go into one listing.
+
+### Publishing: arXiv, CI, Overleaf
+
+arXiv, CI builds and online editors compile the LaTeX themselves, usually without building Lean.
+Include the `.lean` files and `leanquote.sty` in the upload; with the default `verify=auto`
+there is no `.olean` there, so nothing is marked. Do the check where Lean is built: run
+`lake build`, compile the paper locally, check that no quote is marked UNVERIFIED, then upload.
 
 ### Optional: exact boundaries with `leanquote-export`
 
@@ -87,7 +95,7 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
-| `verify` | true | check that Lean compiled the code; if not, mark the quote UNVERIFIED and warn (old name: `check`) |
+| `verify=<mode>` | `auto` | `auto`: mark a quote UNVERIFIED if its `.lean` is newer than its `.olean`; `true`: also if there is no `.olean`; `false`: no check (old name: `check`) |
 | `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
 | any other key | | passed to `\lstinputlisting` (e.g. `basicstyle=\footnotesize\ttfamily`) |
 
