@@ -3,5 +3,5 @@
 *.out
 *.pdf
 !example/lean-logo.pdf
-*-leandecl-*.lean
+*-leanquote-*.lean
 .DS_Store

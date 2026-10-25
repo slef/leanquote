@@ -1,13 +1,13 @@
 /-
-leandecl exporter: writes the exact source text of every declaration of a compiled Lean module
-to a `.leandecl` file, for the `leandecl` LaTeX package.
+leanquote exporter: writes the exact source text of every declaration of a compiled Lean module
+to a `.leanquote` file, for the `leanquote` LaTeX package.
 
 Usage, from the root of a Lake project in which `MODULE` has been built:
 
-  lake env lean --run path/to/LeanDeclExport.lean MODULE SOURCE.lean OUTPUT.leandecl
+  lake env lean --run path/to/LeanQuoteExport.lean MODULE SOURCE.lean OUTPUT.leanquote
 
 The declaration ranges come from the compiled module (`.olean`), so they describe the version
-of `SOURCE.lean` that Lean last compiled. Run `lake build MODULE` first (the `leandecl-export`
+of `SOURCE.lean` that Lean last compiled. Run `lake build MODULE` first (the `leanquote-export`
 shell script does both). The file also records the source text, so that the LaTeX package can
 warn when `SOURCE.lean` has changed since the export.
 -/
@@ -20,12 +20,12 @@ def citable (env : Environment) (n : Name) : Bool :=
 
 def main (args : List String) : IO UInt32 := do
   let [modStr, srcPath, outPath] := args
-    | IO.eprintln "usage: LeanDeclExport MODULE SOURCE.lean OUTPUT.leandecl"; return 1
+    | IO.eprintln "usage: LeanQuoteExport MODULE SOURCE.lean OUTPUT.leanquote"; return 1
   let mod := modStr.toName
   initSearchPath (← findSysroot)
   let env ← importModules #[{ module := mod }] {}
   let some idx := env.getModuleIdx? mod
-    | IO.eprintln s!"leandecl: module {mod} not found"; return 1
+    | IO.eprintln s!"leanquote: module {mod} not found"; return 1
   let lines := (← IO.FS.readFile srcPath).splitOn "\n" |>.toArray
   let ctx : Core.Context := { fileName := srcPath, fileMap := default }
   let mut entries : Array (Nat × Name × Nat × Nat × Bool) := #[]
@@ -37,7 +37,7 @@ def main (args : List String) : IO UInt32 := do
     let hasDoc := (← findDocString? env n).isSome
     entries := entries.push (r.range.pos.line, n, r.range.pos.line, r.range.endPos.line, hasDoc)
   let sorted := entries.qsort (fun a b => a.1 < b.1)
-  let mut out := s!"@@leandecl-export 1\n@@module {mod}\n@@source {srcPath}\n"
+  let mut out := s!"@@leanquote-export 1\n@@module {mod}\n@@source {srcPath}\n"
   let mut seen : Std.HashSet Nat := {}
   for (_, n, first, last, hasDoc) in sorted do
     if seen.contains first then continue  -- e.g. structure fields share their parent's range
@@ -59,5 +59,5 @@ def main (args : List String) : IO UInt32 := do
   for l in srcLines do
     out := out ++ s!"@@src {String.mk (l.toList.reverse.dropWhile Char.isWhitespace).reverse}\n"
   IO.FS.writeFile outPath out
-  IO.println s!"leandecl: wrote {seen.size} declarations of {mod} to {outPath}"
+  IO.println s!"leanquote: wrote {seen.size} declarations of {mod} to {outPath}"
   return 0

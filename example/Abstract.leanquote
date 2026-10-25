@@ -1,4 +1,4 @@
-@@leandecl-export 1
+@@leanquote-export 1
 @@module TranslationTiling.Abstract
 @@source TranslationTiling/Abstract.lean
 @@begin TranslationTiling.Abstract.Point

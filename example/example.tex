@@ -2,26 +2,29 @@
 \usepackage[T1]{fontenc}
 \usepackage{amssymb}
 \usepackage[margin=1in]{geometry}
-\usepackage{leandecl}
-\leandeclsetup{logo=lean-logo.pdf, project=./}
+\usepackage{leanquote}
+\leanquotesetup{logo=lean-logo.pdf, project=./}
 \begin{document}
-\section*{leandecl example: 3D translational tiling}
+\section*{leanquote example: 3D translational tiling}
+
+\leanfile{TranslationTiling/Abstract.lean}
 
 A \emph{prototile} is a finite list of points of $\mathbb{Z}^3$:
-\leandecl{TranslationTiling/Abstract.lean}{Point, Prototile}
+\leanquote{Point, Prototile}
 
 Two points are \emph{adjacent} if their $\ell^1$ distance is $1$, and a prototile is
 \emph{connected} if any two of its points are joined by a path of adjacent points:
-\leandecl{TranslationTiling/Abstract.lean}{Adjacent, Connected}
+\leanquote{Adjacent, Connected}
 
 $P$ \emph{tiles} $\mathbb{Z}^3$ if some set $T$ of translations puts every point in exactly
 one translate $t + P$. Here with its doc comment:
-\leandecl[doc]{TranslationTiling/Abstract.lean}{Tiles}
+\leanquote[doc]{Tiles}
 
 \textbf{Theorem.} Tiling $\mathbb{Z}^3$ with a connected prototile is co-RE-complete,
 and hence undecidable:
-\leandecl{Abstract.leandecl}{tiling_coRE_complete, TranslationTiling.Abstract.tiling_undecidable}
+\leanquote{tiling_coRE_complete, TranslationTiling.Abstract.tiling_undecidable}
 
-The same, from the optional export written by \texttt{leandecl-export}, without a box:
-\leandecl[box=false]{Abstract.leandecl}{Solid}
+From an explicit file, here the optional export written by \texttt{leanquote-export},
+without a box:
+\leanfilequote[box=false]{Abstract.leanquote}{Solid}
 \end{document}
