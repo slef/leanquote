@@ -117,11 +117,18 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 - The code shown is the current text of the `.lean` file. With `project` set and no warning, that
   file is older than its compiled `.olean`, so it is what Lean last compiled (assuming the build
   succeeded, which is when Lake writes the `.olean`). LaTeX never compiles Lean itself.
-- The default style maps common Unicode symbols for pdfLaTeX. Other symbols can be added with
-  `literate`, or use LuaLaTeX/XeLaTeX with a Unicode monospace font.
+- The default style typesets about a hundred of Lean's Unicode symbols as math, under pdfLaTeX,
+  LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a monospace font that
+  has them (LuaLaTeX, XeLaTeX).
 
-Tested with Lean v4.28.0, v4.31.0 and v4.35.0 (exporter), and pdfLaTeX from TeX Live 2025.
+Tested with pdfLaTeX, LuaLaTeX and XeLaTeX from TeX Live 2025, and with Lean v4.28.0, v4.31.0
+and v4.35.0 (exporter).
+
+## Documentation
+
+`doc/leanquote-doc.pdf` is the manual. `./make-ctan.sh` rebuilds it and writes the CTAN
+archive `leanquote.zip`.
 
 ## License
 
-MIT. The Lean logo in `example/` belongs to the Lean FRO.
+MIT. The Lean logo in `example/` belongs to the Lean FRO and is not part of the CTAN archive.

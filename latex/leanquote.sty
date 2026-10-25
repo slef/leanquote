@@ -16,11 +16,12 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.4}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-25}{0.5}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
 \RequirePackage{tcolorbox}
+\RequirePackage{amssymb}
 \tcbuselibrary{skins,breakable}
 
 % ---------------------------------------------------------------- options
@@ -468,7 +469,7 @@
 \newtcolorbox{leanquotebox}{breakable, enhanced, colback=black!3, colframe=black!45,
   boxrule=0.5pt, arc=2pt, left=6pt, right=6pt, top=3pt, bottom=3pt,
   overlay~unbroken~and~first={
-    \tl_if_blank:VF \l_leanquote_logo_tl
+    \file_if_exist:VT \l_leanquote_logo_tl
       {
         \node[anchor=north~east, inner~sep=3pt, draw=black!45, fill=white,
           line~width=0.5pt, rounded~corners=2pt] at (frame.north~east)
@@ -486,33 +487,150 @@
   sensitive=true, morecomment=[l]{--}, morecomment=[n]{/-}{-/}, morestring=[b]"}
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
-\lstdefinestyle{leanquote}{language=lean4, basicstyle=\ttfamily\small, columns=fullflexible,
+% Lean's Unicode symbols, typeset as math. Under pdfLaTeX they become listings `literate`
+% replacements; under LuaLaTeX and XeLaTeX they are made active inside listings.
+\def\leanquote@table{%
+  \leanquote@pair{ℕ}{\mathbb{N}}%
+  \leanquote@pair{ℤ}{\mathbb{Z}}%
+  \leanquote@pair{ℚ}{\mathbb{Q}}%
+  \leanquote@pair{ℝ}{\mathbb{R}}%
+  \leanquote@pair{ℂ}{\mathbb{C}}%
+  \leanquote@pair{→}{\to}%
+  \leanquote@pair{←}{\leftarrow}%
+  \leanquote@pair{↔}{\leftrightarrow}%
+  \leanquote@pair{↦}{\mapsto}%
+  \leanquote@pair{⇒}{\Rightarrow}%
+  \leanquote@pair{∀}{\forall}%
+  \leanquote@pair{∃}{\exists}%
+  \leanquote@pair{¬}{\neg}%
+  \leanquote@pair{∧}{\wedge}%
+  \leanquote@pair{∨}{\vee}%
+  \leanquote@pair{≠}{\neq}%
+  \leanquote@pair{≤}{\le}%
+  \leanquote@pair{≥}{\ge}%
+  \leanquote@pair{≈}{\approx}%
+  \leanquote@pair{≡}{\equiv}%
+  \leanquote@pair{∈}{\in}%
+  \leanquote@pair{∉}{\notin}%
+  \leanquote@pair{⊆}{\subseteq}%
+  \leanquote@pair{⊂}{\subset}%
+  \leanquote@pair{∪}{\cup}%
+  \leanquote@pair{∩}{\cap}%
+  \leanquote@pair{⋃}{\bigcup}%
+  \leanquote@pair{⋂}{\bigcap}%
+  \leanquote@pair{∅}{\emptyset}%
+  \leanquote@pair{∑}{\sum}%
+  \leanquote@pair{∏}{\prod}%
+  \leanquote@pair{∫}{\int}%
+  \leanquote@pair{∂}{\partial}%
+  \leanquote@pair{∘}{\circ}%
+  \leanquote@pair{×}{\times}%
+  \leanquote@pair{·}{\cdot}%
+  \leanquote@pair{•}{\bullet}%
+  \leanquote@pair{√}{\surd}%
+  \leanquote@pair{∞}{\infty}%
+  \leanquote@pair{⊤}{\top}%
+  \leanquote@pair{⊥}{\bot}%
+  \leanquote@pair{≃}{\simeq}%
+  \leanquote@pair{≅}{\cong}%
+  \leanquote@pair{∣}{\mid}%
+  \leanquote@pair{‖}{\|}%
+  \leanquote@pair{⟨}{\langle}%
+  \leanquote@pair{⟩}{\rangle}%
+  \leanquote@pair{⦃}{\{\!|}%
+  \leanquote@pair{⦄}{|\!\}}%
+  \leanquote@pair{⨅}{\bigwedge}%
+  \leanquote@pair{⨆}{\bigvee}%
+  \leanquote@pair{α}{\alpha}%
+  \leanquote@pair{β}{\beta}%
+  \leanquote@pair{γ}{\gamma}%
+  \leanquote@pair{δ}{\delta}%
+  \leanquote@pair{ε}{\varepsilon}%
+  \leanquote@pair{ζ}{\zeta}%
+  \leanquote@pair{η}{\eta}%
+  \leanquote@pair{θ}{\theta}%
+  \leanquote@pair{ι}{\iota}%
+  \leanquote@pair{κ}{\kappa}%
+  \leanquote@pair{λ}{\lambda}%
+  \leanquote@pair{μ}{\mu}%
+  \leanquote@pair{ν}{\nu}%
+  \leanquote@pair{ξ}{\xi}%
+  \leanquote@pair{π}{\pi}%
+  \leanquote@pair{ρ}{\rho}%
+  \leanquote@pair{σ}{\sigma}%
+  \leanquote@pair{τ}{\tau}%
+  \leanquote@pair{φ}{\varphi}%
+  \leanquote@pair{χ}{\chi}%
+  \leanquote@pair{ψ}{\psi}%
+  \leanquote@pair{ω}{\omega}%
+  \leanquote@pair{Γ}{\Gamma}%
+  \leanquote@pair{Δ}{\Delta}%
+  \leanquote@pair{Θ}{\Theta}%
+  \leanquote@pair{Λ}{\Lambda}%
+  \leanquote@pair{Σ}{\Sigma}%
+  \leanquote@pair{Π}{\Pi}%
+  \leanquote@pair{Φ}{\Phi}%
+  \leanquote@pair{Ψ}{\Psi}%
+  \leanquote@pair{Ω}{\Omega}%
+  \leanquote@pair{₀}{_0}%
+  \leanquote@pair{₁}{_1}%
+  \leanquote@pair{₂}{_2}%
+  \leanquote@pair{₃}{_3}%
+  \leanquote@pair{₄}{_4}%
+  \leanquote@pair{₅}{_5}%
+  \leanquote@pair{₆}{_6}%
+  \leanquote@pair{₇}{_7}%
+  \leanquote@pair{₈}{_8}%
+  \leanquote@pair{₉}{_9}%
+  \leanquote@pair{ᵢ}{_i}%
+  \leanquote@pair{ⱼ}{_j}%
+  \leanquote@pair{⁰}{^0}%
+  \leanquote@pair{¹}{^1}%
+  \leanquote@pair{²}{^2}%
+  \leanquote@pair{³}{^3}%
+  \leanquote@pair{⁴}{^4}%
+  \leanquote@pair{⁵}{^5}%
+  \leanquote@pair{⁶}{^6}%
+  \leanquote@pair{⁷}{^7}%
+  \leanquote@pair{⁸}{^8}%
+  \leanquote@pair{⁹}{^9}%
+  \leanquote@pair{⁻}{^-}%
+  \leanquote@pair{ⁿ}{^n}%
+  \leanquote@pair{ᶜ}{^c}%
+  \leanquote@pair{ᶠ}{^{\mathsf f}}%
+  \leanquote@pair{ᵐ}{^{\mathrm m}}%
+  \leanquote@pair{ℓ}{\ell}%
+}
+\ExplSyntaxOn
+\tl_new:N \l__leanquote_literate_tl
+\clist_new:N \g__leanquote_unicode_clist
+\bool_lazy_or:nnTF { \sys_if_engine_luatex_p: } { \sys_if_engine_xetex_p: }
+  {
+    \cs_set_protected:cpn { leanquote@pair } #1#2
+      {
+        \cs_gset_protected:cpn { __leanquote_u_ \int_eval:n { `#1 } } { \ensuremath {#2} }
+        \char_gset_active_eq:nc { `#1 } { __leanquote_u_ \int_eval:n { `#1 } }
+        \clist_gput_right:Ne \g__leanquote_unicode_clist { \int_eval:n { `#1 } }
+      }
+    \use:c { leanquote@table }
+    \lst@AddToHook { SelectCharTable }
+      { \clist_map_inline:Nn \g__leanquote_unicode_clist { \char_set_catcode_active:n {##1} } }
+  }
+  {
+    \cs_set:cpn { leanquote@pair } #1#2 { \exp_not:n { {#1} { {$#2$} } 1 } }
+    \tl_set:Ne \l__leanquote_literate_tl { \use:c { leanquote@table } }
+  }
+\use:e
+  {
+    \exp_not:N \lstdefinestyle { leanquote }
+      {
+        \exp_not:n {language=lean4, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
   keywordstyle=\bfseries\color{leanquotekeyword}, keywordstyle=[2]\color{leanquotetype},
   commentstyle=\itshape\color{black!60},
-  breaklines=true, breakatwhitespace=true, postbreak=\mbox{\hspace{1em}},
-  literate=
-    {ℕ}{{$\mathbb{N}$}}1 {ℤ}{{$\mathbb{Z}$}}1 {ℚ}{{$\mathbb{Q}$}}1 {ℝ}{{$\mathbb{R}$}}1
-    {ℂ}{{$\mathbb{C}$}}1 {→}{{$\to$}}1 {←}{{$\leftarrow$}}1 {↔}{{$\leftrightarrow$}}1
-    {↦}{{$\mapsto$}}1 {⇒}{{$\Rightarrow$}}1 {∀}{{$\forall$}}1 {∃}{{$\exists$}}1
-    {¬}{{$\neg$}}1 {∧}{{$\wedge$}}1 {∨}{{$\vee$}}1 {≠}{{$\neq$}}1 {≤}{{$\le$}}1
-    {≥}{{$\ge$}}1 {≈}{{$\approx$}}1 {≡}{{$\equiv$}}1 {∈}{{$\in$}}1 {∉}{{$\notin$}}1
-    {⊆}{{$\subseteq$}}1 {⊂}{{$\subset$}}1 {∪}{{$\cup$}}1 {∩}{{$\cap$}}1
-    {⋃}{{$\bigcup$}}1 {⋂}{{$\bigcap$}}1 {∅}{{$\emptyset$}}1 {∑}{{$\sum$}}1
-    {∏}{{$\prod$}}1 {∫}{{$\int$}}1 {∂}{{$\partial$}}1 {∘}{{$\circ$}}1 {×}{{$\times$}}1
-    {·}{{$\cdot$}}1 {•}{{$\bullet$}}1 {√}{{$\surd$}}1 {∞}{{$\infty$}}1 {⊤}{{$\top$}}1
-    {⊥}{{$\bot$}}1 {≃}{{$\simeq$}}1 {≅}{{$\cong$}}1 {∣}{{$\mid$}}1 {‖}{{$\|$}}1
-    {⟨}{{$\langle$}}1 {⟩}{{$\rangle$}}1 {⦃}{{$\{\!|$}}1 {⦄}{{$|\!\}$}}1
-    {⨅}{{$\bigwedge$}}1 {⨆}{{$\bigvee$}}1
-    {α}{{$\alpha$}}1 {β}{{$\beta$}}1 {γ}{{$\gamma$}}1 {δ}{{$\delta$}}1 {ε}{{$\varepsilon$}}1
-    {ζ}{{$\zeta$}}1 {η}{{$\eta$}}1 {θ}{{$\theta$}}1 {ι}{{$\iota$}}1 {κ}{{$\kappa$}}1
-    {λ}{{$\lambda$}}1 {μ}{{$\mu$}}1 {ν}{{$\nu$}}1 {ξ}{{$\xi$}}1 {π}{{$\pi$}}1 {ρ}{{$\rho$}}1
-    {σ}{{$\sigma$}}1 {τ}{{$\tau$}}1 {φ}{{$\varphi$}}1 {χ}{{$\chi$}}1 {ψ}{{$\psi$}}1
-    {ω}{{$\omega$}}1 {Γ}{{$\Gamma$}}1 {Δ}{{$\Delta$}}1 {Θ}{{$\Theta$}}1 {Λ}{{$\Lambda$}}1
-    {Σ}{{$\Sigma$}}1 {Π}{{$\Pi$}}1 {Φ}{{$\Phi$}}1 {Ψ}{{$\Psi$}}1 {Ω}{{$\Omega$}}1
-    {₀}{{$_0$}}1 {₁}{{$_1$}}1 {₂}{{$_2$}}1 {₃}{{$_3$}}1 {₄}{{$_4$}}1 {₅}{{$_5$}}1
-    {₆}{{$_6$}}1 {₇}{{$_7$}}1 {₈}{{$_8$}}1 {₉}{{$_9$}}1 {ᵢ}{{$_i$}}1 {ⱼ}{{$_j$}}1
-    {⁰}{{$^0$}}1 {¹}{{$^1$}}1 {²}{{$^2$}}1 {³}{{$^3$}}1 {⁴}{{$^4$}}1 {⁵}{{$^5$}}1
-    {⁶}{{$^6$}}1 {⁷}{{$^7$}}1 {⁸}{{$^8$}}1 {⁹}{{$^9$}}1 {⁻}{{$^-$}}1 {ⁿ}{{$^n$}}1
-    {ᶜ}{{$^c$}}1 {ᶠ}{{$^{\mathsf f}$}}1 {ᵐ}{{$^{\mathrm m}$}}1 {ℓ}{{$\ell$}}1
-}
+  breaklines=true, breakatwhitespace=true, postbreak=\mbox{\hspace{1em}}}
+        \tl_if_empty:NF \l__leanquote_literate_tl
+          { , literate = \exp_not:V \l__leanquote_literate_tl }
+      }
+  }
+\ExplSyntaxOff

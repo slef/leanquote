@@ -1,0 +1,212 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{leanquote}
+\leanquotesetup{project=../example/}
+
+\lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
+  keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
+  moretexcs={leanfile,leanquote,leanfilequote,leanquotesetup}}
+\lstnewenvironment{latexsrc}{\lstset{style=latexsrc}}{}
+\newcommand{\meta}[1]{\ensuremath{\langle}\textit{#1}\ensuremath{\rangle}}
+\newcommand{\cs}[1]{\texttt{\textbackslash #1}}
+\newcommand{\opt}[1]{\texttt{#1}}
+
+\title{The \textsf{leanquote} package\\[0.3em]
+  \large Quote Lean declarations in \LaTeX{} by name}
+\author{Stefan Langerman \and Erik D. Demaine}
+\date{Version 0.5, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+
+\begin{document}
+\sloppy
+\maketitle
+
+\begin{abstract}
+\noindent
+\textsf{leanquote} typesets declarations of a Lean~4 file in a \LaTeX{} document by name:
+\cs{leanfile}\verb|{Abstract.lean}| followed by \cs{leanquote}\verb|{main_theorem}| prints the
+declaration \texttt{main\_theorem} exactly as it appears in the Lean source, read at compile time.
+The prose stays in \LaTeX, and the code is never retyped or pasted.
+A misspelled name is an error, and the package warns when the Lean file has changed since Lean
+last compiled it.
+It needs nothing on the Lean side beyond the usual \texttt{lake build}; an optional exporter lets
+Lean itself report the exact extent of each declaration.
+It works with pdf\LaTeX, Lua\LaTeX, and Xe\LaTeX.
+\end{abstract}
+
+\section{Why}
+
+Papers that use a formalization often reproduce its definitions and main theorem statements,
+so that a reader can check that the formal statements say what the paper claims.
+Pasting code by hand invites the copy in the paper to drift from the code that Lean checked.
+With \textsf{leanquote} the paper names the declarations it wants, and \LaTeX{} copies them from
+the Lean file each time the paper is compiled.
+The package was written for papers that present a short, human-readable
+\texttt{Abstract.lean}, containing the definitions and main statements of a formalization and
+proved through a bridge to the full development, but it works with any Lean~4 file.
+
+\section{Usage}
+
+\begin{latexsrc}
+\usepackage{leanquote}
+\leanquotesetup{project=../lean/}            % root of the Lake project (optional)
+
+\leanfile{TranslationTiling/Abstract.lean}  % current file
+A prototile is a finite list of points of $\mathbb{Z}^3$:
+\leanquote{Point, Prototile}
+\end{latexsrc}
+
+\noindent produces (with the file shipped in the package's \texttt{example} directory):
+
+\leanfile{TranslationTiling/Abstract.lean}
+A prototile is a finite list of points of $\mathbb{Z}^3$:
+\leanquote{Point, Prototile}
+
+\medskip
+\begin{description}
+\item[\cs{leanfile}\texttt{[\meta{options}]\{\meta{file}\}}]
+  sets the current file for the following \cs{leanquote} commands. Options given here apply to
+  all of them. The path is relative to \opt{project}, if set.
+\item[\cs{leanquote}\texttt{[\meta{options}]\{\meta{names}\}}]
+  typesets the comma-separated declarations \meta{names} of the current file, together, in one
+  listing.
+\item[\cs{leanfilequote}\texttt{[\meta{options}]\{\meta{file}\}\{\meta{names}\}}]
+  does the same for an explicitly given file.
+\item[\cs{leanquotesetup}\texttt{\{\meta{options}\}}]
+  sets options for the rest of the document (or the current group).
+\end{description}
+
+\noindent Names may be short (\texttt{Tiles}) or qualified
+(\texttt{TranslationTiling.Abstract.Tiles}). A qualified name matches a declaration inside the
+corresponding \texttt{namespace}: either name may be a dotted suffix of the other. An unknown name
+is an error; an ambiguous one is a warning, and the first match is used.
+
+With the \opt{doc} option, the doc comment is included:
+
+\begin{latexsrc}
+\leanquote[doc]{Tiles}
+\end{latexsrc}
+\leanquote[doc]{Tiles}
+
+\section{Options}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Option & Default & Meaning \\
+\midrule
+\opt{doc} & false & also show each declaration's doc comment \\
+\opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
+\opt{logo=}\meta{file} & none & image in the frame's top-right corner \\
+\opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
+\opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
+\opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
+\opt{check} & true & warn if the code may not be what Lean compiled \\
+\opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
+any other key & & passed to \cs{lstinputlisting} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{How declarations are found}
+
+The package reads the Lean file with \LaTeX's own file input and uses the standard layout of
+Lean code. A declaration starts at a line in column~0 of the form
+\begin{center}
+\texttt{[@[\meta{attributes}]] [\meta{modifiers}] \meta{keyword} \meta{name} \dots}
+\end{center}
+where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \texttt{abbrev},
+\texttt{structure}, \texttt{inductive}, \texttt{instance}, \texttt{class}, \texttt{axiom},
+\texttt{opaque}, and the modifiers are \texttt{private}, \texttt{protected},
+\texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}.
+Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
+The declaration continues while lines are blank, indented, or start with \texttt{|},
+\texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
+dropped. This matches the layout used by Mathlib and by most Lean code, including
+\texttt{match} alternatives and \texttt{inductive} constructors.
+
+\section{Was the code compiled?}
+
+\LaTeX{} does not run Lean. But Lake writes a module's compiled file
+(\texttt{.lake/build/lib/lean/\dots/File.olean}) only when it builds successfully, so after a
+successful \texttt{lake build} the \texttt{.olean} is newer than its \texttt{.lean} source.
+With \opt{project} set to the root of the Lake project, \textsf{leanquote} compares the two
+modification dates and warns if the source is newer:
+\begin{latexsrc}
+Package leanquote Warning: ../lean/TranslationTiling/Abstract.lean is newer
+(leanquote)  than its compiled file ... The code shown may not be what Lean
+(leanquote)  checked: run lake build.
+\end{latexsrc}
+If no \texttt{.olean} is found (for instance, for a copy of the file outside its project), the
+package only notes in the log that it cannot check.
+
+\section{Optional: exact boundaries from Lean}
+
+For files laid out unusually, Lean itself can report where each declaration starts and ends.
+From the root of the Lake project, run the exporter shipped with the package:
+\begin{latexsrc}
+path/to/leanquote/leanquote-export TranslationTiling.Abstract [More.Modules ...]
+\end{latexsrc}
+It builds each module and writes
+\texttt{.lake/build/leanquote/TranslationTiling/Abstract.leanquote}, inside the build directory.
+From then on, \cs{leanquote} finds this export automatically and uses Lean's declaration ranges;
+nothing changes in the document. The export also records the source as compiled. If the
+\texttt{.lean} file is edited afterwards, the package warns and falls back to reading the
+\texttt{.lean} file directly, so the document always shows the current code.
+The exporter is a single Lean file (\texttt{lean/LeanQuoteExport.lean}) run with
+\texttt{lake env lean --run}; nothing is added to the Lean project.
+An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
+explicitly with \cs{leanfilequote}\verb|{Abstract.leanquote}{...}|.
+
+\section{Engines and symbols}
+
+The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
+($\mathbb{N}\ \mathbb{Z}\ \mathbb{R}\ \to\ \forall\ \exists\ \sum\ \bigcup\ \le$ \dots, Greek letters, sub- and superscripts) as math, under
+pdf\LaTeX{} through listings' \opt{literate} mechanism, and under Lua\LaTeX{} and Xe\LaTeX{} by
+making these characters active inside listings. Other symbols can be added with \opt{literate}
+in a style of your own (pdf\LaTeX), or by choosing a monospace font that contains them
+(Lua\LaTeX, Xe\LaTeX).
+The package loads \textsf{listings}, \textsf{xcolor}, \textsf{graphicx}, \textsf{amssymb},
+\textsf{pdftexcmds}, and \textsf{tcolorbox} with its \texttt{skins} and \texttt{breakable}
+libraries. It writes one temporary file \meta{jobname}\texttt{-leanquote-}\meta{n}\texttt{.lean}
+per listing.
+
+\section{Texlish}
+
+\href{https://texlish.org}{Texlish} passes \LaTeX{} commands through, and its one-argument
+syntax reads naturally:
+\begin{latexsrc}
+::use leanquote
+\leanfile: Abstract.lean
+\leanquote: main_theorem
+\end{latexsrc}
+With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
+
+\section{Limitations}
+
+\begin{itemize}
+\item Without an export, declaration boundaries follow the layout rules above; code that puts
+  continuation lines in column~0 (other than the listed keywords) is cut short.
+\item Namespaces are not tracked: two declarations with the same short name in different
+  namespaces give an ambiguity warning; quote them with a name that distinguishes them.
+\item The compiled check relies on file modification dates; copying a project without
+  preserving them can cause false warnings or hide stale code.
+\end{itemize}
+
+\section{License and history}
+
+\textsf{leanquote} is released under the MIT License. It grew out of a position paper by the
+authors on presenting the formal statements of machine-checked results to human readers.
+
+\begin{description}
+\item[0.5 (2026-10-25)] LuaLaTeX and XeLaTeX support; documentation.
+\item[0.4] Renamed from \textsf{leandecl}; \cs{leanfile} and \cs{leanquote}.
+\item[0.3] Optional exports used automatically when up to date.
+\item[0.2] Direct reading of \texttt{.lean} files; compiled check.
+\item[0.1] First version, based on exports.
+\end{description}
+
+\end{document}

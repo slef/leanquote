@@ -5,3 +5,10 @@
 !example/lean-logo.pdf
 *-leanquote-*.lean
 .DS_Store
+build/
+leanquote.zip
+doc/*.aux
+doc/*.log
+doc/*.out
+doc/*.toc
+!doc/leanquote-doc.pdf
