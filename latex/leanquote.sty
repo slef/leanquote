@@ -3,6 +3,7 @@
 %   \leanquotesetup{project=../lean/}            % root of the Lake project (optional)
 %   \leanfile{Path/To/File.lean}                  % current file (alias: \leanquotefile)
 %   \leanquote[options]{Name1, Name2, ...}        % quote from the current file
+%   \leanquoteimports[options]                    % its import block (or the name :imports)
 %   \leanfilequote[options]{Path/To/File.lean}{Name1, Name2, ...}   % explicit file
 %
 % A declaration is found by its `def`/`theorem`/... line in column 0 and runs while lines are
@@ -16,7 +17,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.10}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.11}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -83,6 +84,8 @@
   { No~compiled~file~#2~for~#1,~so~leanquote~cannot~check~that~Lean~compiled~it~
     (verify=true:~the~quote~is~marked~UNVERIFIED).~Set~project~to~the~root~of~its~Lake~
     project~or~olean~to~the~compiled~file,~or~use~verify=auto. }
+\msg_new:nnn { leanquote } { no-imports }
+  { No~import~lines~found~at~the~top~of~#1. }
 \msg_new:nnn { leanquote } { failed }
   { The~last~lake~build~of~#1~failed:~its~compiled~file~#2~is~missing~
     (the~quote~is~marked~UNVERIFIED).~Fix~the~Lean~file~and~run~lake~build. }
@@ -286,6 +289,62 @@
           }
       }
   }
+% ---------------------------------------------------------------- the import block
+% The `module` / `[public|private|meta] import` lines at the top of a file. A comment before them
+% (e.g. a copyright header) is skipped; the block ends at the first other non-blank line.
+\bool_new:N \l__leanquote_inheader_bool
+\bool_new:N \l__leanquote_incomment_bool
+\cs_new_protected:Npn \__leanquote_import_line:n #1
+  {
+    \bool_if:NTF \l__leanquote_incomment_bool
+      { \regex_match:nnT { -/ } {#1} { \bool_set_false:N \l__leanquote_incomment_bool } }
+      {
+        \regex_match:nnTF
+          { \A (?: module \s* \Z | (?:(?:public|private|meta) \s+)* import \s ) } {#1}
+          {
+            \bool_set_true:N \l__leanquote_found_bool
+            \bool_set_true:N \l__leanquote_inheader_bool
+            \__leanquote_write:n {#1}
+          }
+          {
+            \regex_match:nnF { \A \s* (?: \Z | -- ) } {#1}
+              {
+                \bool_if:NTF \l__leanquote_inheader_bool
+                  { \ior_map_break: }
+                  {
+                    \regex_match:nnTF { \A /- } {#1}
+                      {
+                        \regex_match:nnF { -/ } {#1}
+                          { \bool_set_true:N \l__leanquote_incomment_bool }
+                      }
+                      { \ior_map_break: }
+                  }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_imports:n #1
+  {% #1 = .lean file, or export (its @@src lines)
+    \bool_set_false:N \l__leanquote_found_bool
+    \bool_set_false:N \l__leanquote_inheader_bool
+    \bool_set_false:N \l__leanquote_incomment_bool
+    \int_set:Nn \l__leanquote_matches_int { 1 }
+    \ior_open:Nn \g__leanquote_ior {#1}
+    \str_if_eq:eeTF { \str_range:nnn {#1} {-5} {-1} } { .lean }
+      { \ior_str_map_inline:Nn \g__leanquote_ior { \__leanquote_import_line:n {##1} } }
+      {
+        \ior_str_map_inline:Nn \g__leanquote_ior
+          {
+            \regex_match:nnT { \A @@src (\x{20} | \Z) } {##1}
+              { \exp_args:Ne \__leanquote_import_line:n { \str_range:nnn {##1} {7} {-1} } }
+          }
+      }
+    \ior_close:N \g__leanquote_ior
+  }
+\cs_generate_variant:Nn \__leanquote_imports:n { V }
+\str_const:Nn \c__leanquote_imports_str { :imports }
+\bool_new:N \l__leanquote_hasdecl_bool
+
 \cs_new_protected:Npn \__leanquote_from_source:n #1
   {
     \bool_set_false:N \l__leanquote_inside_bool
@@ -473,6 +532,7 @@
     \bool_set_false:N \l__leanquote_sorryfile_bool
     \bool_set_false:N \l__leanquote_sorrydecl_bool
     \bool_set_false:N \l__leanquote_axioms_bool
+    \bool_set_false:N \l__leanquote_hasdecl_bool
     \bool_set:Nn \l_leanquote_check_bool { ! \str_if_eq_p:Vn \l_leanquote_verify_tl { false } }
     \str_set:Nn \l__leanquote_file_str {#1}
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
@@ -515,15 +575,24 @@
         \str_set:NV \l__leanquote_name_str \l_tmpa_tl
         \bool_if:NF \l__leanquote_first_bool { \__leanquote_write:n { } }
         \bool_set_false:N \l__leanquote_first_bool
-        \bool_if:NTF \l__leanquote_useexport_bool
-          { \__leanquote_from_export:V \l__leanquote_export_str }
+        \str_if_eq:NNTF \l__leanquote_name_str \c__leanquote_imports_str
           {
-            \str_if_eq:eeTF { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
-              { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
-              { \__leanquote_from_export:n {#1} }
+            \__leanquote_imports:V \l__leanquote_file_str
+            \bool_if:NF \l__leanquote_found_bool
+              { \msg_error:nnV { leanquote } { no-imports } \l__leanquote_file_str }
           }
-        \bool_if:NF \l__leanquote_found_bool
-          { \msg_error:nnVV { leanquote } { not-found } \l__leanquote_name_str \l__leanquote_file_str }
+          {
+            \bool_set_true:N \l__leanquote_hasdecl_bool
+            \bool_if:NTF \l__leanquote_useexport_bool
+              { \__leanquote_from_export:V \l__leanquote_export_str }
+              {
+                \str_if_eq:eeTF { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
+                  { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
+                  { \__leanquote_from_export:n {#1} }
+              }
+            \bool_if:NF \l__leanquote_found_bool
+              { \msg_error:nnVV { leanquote } { not-found } \l__leanquote_name_str \l__leanquote_file_str }
+          }
         \int_compare:nNnT { \l__leanquote_matches_int } > { 1 }
           { \msg_warning:nnVn { leanquote } { ambiguous } \l__leanquote_name_str {#1} }
       }
@@ -536,7 +605,8 @@
         \bool_if:NTF \l__leanquote_sorrydecl_bool
           { \tl_set:Nn \l__leanquote_mark_tl { USES~SORRY } }
           {
-            \bool_lazy_and:nnTF { \l__leanquote_sorryfile_bool } { ! \l__leanquote_useexport_bool }
+            \bool_lazy_all:nTF
+              { { \l__leanquote_sorryfile_bool } { ! \l__leanquote_useexport_bool } { \l__leanquote_hasdecl_bool } }
               { \tl_set:Nn \l__leanquote_mark_tl { SORRY~IN~FILE } }
               {
                 \bool_if:NT \l__leanquote_axioms_bool
@@ -587,6 +657,8 @@
     \tl_set:Nn \l_leanquote_file_tl {#2}
     \tl_set:Nn \l__leanquote_fileopts_tl {#1}
   }
+% \leanquoteimports[options]: quote the import block of the current file.
+\NewDocumentCommand \leanquoteimports { O{} } { \leanquote[#1]{:imports} }
 % \leanquote[options]{names}: quote declarations from the current file.
 \NewDocumentCommand \leanquote { O{} m }
   {

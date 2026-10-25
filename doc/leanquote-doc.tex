@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.10, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.11, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -76,11 +76,20 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \item[\cs{leanquote}\texttt{[\meta{options}]\{\meta{names}\}}]
   typesets the comma-separated declarations \meta{names} of the current file, together, in one
   listing.
+\item[\cs{leanquoteimports}\texttt{[\meta{options}]}]
+  typesets the import block of the current file: the \texttt{module} and
+  \texttt{[public|private|meta] import} lines at its top, after any comment such as a copyright
+  header. The block can also be named \texttt{:imports} in a list of names, as in
+  \verb|\leanquote{:imports, Point}|.
 \item[\cs{leanfilequote}\texttt{[\meta{options}]\{\meta{file}\}\{\meta{names}\}}]
   does the same for an explicitly given file.
 \item[\cs{leanquotesetup}\texttt{\{\meta{options}\}}]
   sets options for the rest of the document (or the current group).
 \end{description}
+
+\noindent For instance, \cs{leanquoteimports} gives:
+
+\leanquoteimports
 
 \noindent Names may be short (\texttt{Tiles}) or qualified
 (\texttt{TranslationTiling.Abstract.Tiles}). A qualified name matches a declaration inside the
@@ -319,7 +328,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.10 (2026-10-25)] Failed builds marked \textsc{unverified}; \textsc{uses sorry}, \textsc{sorry in file} and \textsc{extra axioms} marks; axioms in exports.
+\item[0.11 (2026-10-26)] \cs{leanquoteimports} and the \texttt{:imports} name.
+\item[0.10] Failed builds marked \textsc{unverified}; \textsc{uses sorry}, \textsc{sorry in file} and \textsc{extra axioms} marks; axioms in exports.
 \item[0.9] \opt{verify=auto} (new default), \opt{true}, \opt{false}; publishing section.
 \item[0.8] Trademark mark after the logo (\cs{leanquotelogomark}).
 \item[0.7] \textsc{unverified} mark and \opt{verify} option; \cs{leanquotefile} and a safe \cs{leanfile}; listings language renamed \texttt{leanquote-lean}.

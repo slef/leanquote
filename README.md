@@ -32,13 +32,16 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \leanquote{Point, Prototile}
 \leanquote[doc]{Tiles}                      % with its doc comment
 \leanfilequote{Other/File.lean}{foo}        % one-off quote from another file
+\leanquoteimports                           % the import block of the current file
 ```
 
 `\leanfile[options]{file}` (alias `\leanquotefile`) sets the current file (options given there
 apply to its quotes; if the document already defines `\leanfile`, as some blueprint macro files
 do, the package leaves it alone, warns, and you use `\leanquotefile`);
 `\leanquote[options]{names}` quotes from it; `\leanfilequote[options]{file}{names}` names the
-file explicitly.
+file explicitly. `\leanquoteimports` quotes the file's import block (the `module` and
+`[public] import` lines at its top); it can also be named `:imports` in a list, as in
+`\leanquote{:imports, Point}`.
 
 No step on the Lean side beyond your usual `lake build`:
 
