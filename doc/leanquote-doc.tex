@@ -5,7 +5,8 @@
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{leanquote}
-\leanquotesetup{project=../example/}
+% Fit the example's 85--90-column Lean lines within the manual's text width.
+\leanquotesetup{project=../example/,basicstyle=\ttfamily\footnotesize}
 
 \lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
