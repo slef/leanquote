@@ -24,6 +24,9 @@
 \RequirePackage{tcolorbox}
 \RequirePackage{amssymb}
 \tcbuselibrary{skins,breakable}
+% listings' upquote uses \textquotedbl, which has no OT1 definition.
+% Select T1 just for this symbol; leave the document's font encoding unchanged.
+\ProvideTextCommand{\textquotedbl}{OT1}{\UseTextSymbol{T1}{\textquotedbl}}
 
 % ---------------------------------------------------------------- options
 \tl_new:N \l__leanquote_lst_tl
@@ -61,17 +64,22 @@
     project .initial:n = {} ,
     olean .tl_set:N   = \l_leanquote_olean_tl ,
     olean .initial:n  = {} ,
-    unknown .code:n   =
-      \tl_put_right:Nx \l__leanquote_lst_tl
-        { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
   }
+\tl_new:N \l__leanquote_unknown_tl
+\cs_new_protected:Npn \__leanquote_options:n #1
+  {
+    \keys_set_known:nnN { leanquote } {#1} \l__leanquote_unknown_tl
+    \tl_if_blank:VF \l__leanquote_unknown_tl
+      { \tl_put_right:Ne \l__leanquote_lst_tl { , \exp_not:V \l__leanquote_unknown_tl } }
+  }
+\cs_generate_variant:Nn \__leanquote_options:n { V }
 % Listings settings given to \leanquotesetup (unknown keys) are kept for the whole document
 % (or group); those given to a quote or \leanquotefile are added to them.
 \tl_new:N \l__leanquote_setuplst_tl
 \NewDocumentCommand \leanquotesetup { m }
   {
     \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
-    \keys_set:nn { leanquote } {#1}
+    \__leanquote_options:n {#1}
     \tl_set_eq:NN \l__leanquote_setuplst_tl \l__leanquote_lst_tl
   }
 
@@ -235,21 +243,34 @@
 % `@@axioms a b c` line of an export: flag sorry and axioms beyond the standard three.
 \tl_new:N \l__leanquote_axlist_tl
 \tl_new:N \l__leanquote_extra_tl
+\seq_new:N \l__leanquote_axnames_seq
+\cs_generate_variant:Nn \regex_split:nnN { nV }
 \cs_new_protected:Npn \__leanquote_axioms:n #1
   {
     \tl_set:Ne \l__leanquote_axlist_tl { \str_range:nnn {#1} {10} {-1} }
-    \regex_match:nVT { sorryAx } \l__leanquote_axlist_tl
+    \tl_clear:N \l__leanquote_extra_tl
+    \regex_split:nVN { \s+ } \l__leanquote_axlist_tl \l__leanquote_axnames_seq
+    \seq_map_inline:Nn \l__leanquote_axnames_seq
       {
-        \bool_set_true:N \l__leanquote_sorrydecl_bool
-        \msg_warning:nnV { leanquote } { sorry-decl } \l__leanquote_name_str
+        \str_case:nnF {##1}
+          {
+            { } { }
+            { propext } { }
+            { Classical.choice } { }
+            { Quot.sound } { }
+            { sorryAx }
+              {
+                \bool_set_true:N \l__leanquote_sorrydecl_bool
+                \msg_warning:nnV { leanquote } { sorry-decl } \l__leanquote_name_str
+              }
+          }
+          { \tl_put_right:Nn \l__leanquote_extra_tl { ##1 ~ } }
       }
-    \tl_set_eq:NN \l__leanquote_extra_tl \l__leanquote_axlist_tl
-    \regex_replace_all:nnN { propext | Classical\.choice | Quot\.sound | sorryAx } { } \l__leanquote_extra_tl
     \tl_trim_spaces:N \l__leanquote_extra_tl
     \tl_if_blank:VF \l__leanquote_extra_tl
       {
         \bool_set_true:N \l__leanquote_axioms_bool
-        \msg_warning:nnVV { leanquote } { extra-axioms } \l__leanquote_name_str \l__leanquote_axlist_tl
+        \msg_warning:nnVV { leanquote } { extra-axioms } \l__leanquote_name_str \l__leanquote_extra_tl
       }
   }
 \cs_generate_variant:Nn \regex_match:nnT { nV }
@@ -480,19 +501,24 @@
 \bool_new:N \l__leanquote_axioms_bool
 \tl_new:N \l__leanquote_mark_tl
 \cs_generate_variant:Nn \ior_open:Nn { NV }
+\tl_new:N \l__leanquote_cachekey_tl
+\cs_generate_variant:Nn \prop_get:NnNF { NV }
+\cs_generate_variant:Nn \prop_gput:Nnn { NVV }
 \cs_new_protected:Npn \__leanquote_check_compiled:nn #1#2
   {% #1 = source path as read, #2 = path relative to the Lake project root
     % Status per file, computed once: s = stale (source newer than .olean), o = ok, n = no .olean.
-    \prop_get:NnNF \g__leanquote_checked_prop {#1} \l__leanquote_status_tl
+    \tl_if_blank:VTF \l_leanquote_olean_tl
       {
-        \tl_if_blank:VTF \l_leanquote_olean_tl
-          {
-            \str_set:Ne \l__leanquote_olean_str
-              { \l_leanquote_project_tl .lake/build/lib/lean/ \str_range:nnn {#2} {1} {-6} .olean }
-          }
-          { \str_set:NV \l__leanquote_olean_str \l_leanquote_olean_tl }
-        \str_set:Ne \l__leanquote_trace_str
-          { \str_range:Nnn \l__leanquote_olean_str {1} {-7} .trace }
+        \str_set:Ne \l__leanquote_olean_str
+          { \l_leanquote_project_tl .lake/build/lib/lean/ \str_range:nnn {#2} {1} {-6} .olean }
+      }
+      { \str_set:NV \l__leanquote_olean_str \l_leanquote_olean_tl }
+    \str_set:Ne \l__leanquote_trace_str
+      { \str_range:Nnn \l__leanquote_olean_str {1} {-7} .trace }
+    \tl_set:Ne \l__leanquote_cachekey_tl
+      { {#1} { \l__leanquote_olean_str } { \l_leanquote_verify_tl } }
+    \prop_get:NVNF \g__leanquote_checked_prop \l__leanquote_cachekey_tl \l__leanquote_status_tl
+      {
         \file_if_exist:VTF \l__leanquote_olean_str
           {
             \file_compare_timestamp:nNnTF {#1} > { \l__leanquote_olean_str }
@@ -532,7 +558,7 @@
                   { \msg_info:nnnV { leanquote } { no-olean-auto } {#1} \l__leanquote_olean_str }
               }
           }
-        \prop_gput:NnV \g__leanquote_checked_prop {#1} \l__leanquote_status_tl
+        \prop_gput:NVV \g__leanquote_checked_prop \l__leanquote_cachekey_tl \l__leanquote_status_tl
       }
     \str_case:VnF \l__leanquote_status_tl
       {
@@ -753,8 +779,8 @@
   {
     \group_begin:
       \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
-      \keys_set:nV { leanquote } \l__leanquote_fileopts_tl
-      \keys_set:nn { leanquote } {#1}
+      \__leanquote_options:V \l__leanquote_fileopts_tl
+      \__leanquote_options:n {#1}
       \tl_if_blank:VTF \l_leanquote_file_tl
         { \msg_error:nn { leanquote } { no-current-file } }
         {
