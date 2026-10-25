@@ -104,7 +104,7 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | `doc` | false | also show each declaration's doc comment |
 | `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
-| `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. |
+| `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. Put `\leanquotetrademark` (the notice "Lean and the Lean logo are trademarks of Lean FRO.") once in the paper, e.g. in the acknowledgments. |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |

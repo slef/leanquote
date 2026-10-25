@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.14, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.15, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -145,6 +145,8 @@ each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the 
 The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
 always be accompanied by a trademark symbol; for other logos, redefine
 \cs{leanquotelogomark} as empty. The Lean logo is not included in the package.
+\cs{leanquotetrademark} prints the notice ``\leanquotetrademark'' Give it once in the paper,
+for example in the acknowledgments.
 
 \section{How declarations are found}
 
@@ -363,7 +365,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.14 (2026-10-26)] Words after a dot (import paths, qualified names) are not coloured.
+\item[0.15 (2026-10-26)] \cs{leanquotetrademark}.
+\item[0.14] Words after a dot (import paths, qualified names) are not coloured.
 \item[0.13] Common Mathlib types, tactics and \texttt{sorry} coloured; listings
   settings in \cs{leanquotesetup} are kept for the whole document; \cs{leanfile} available in the
   preamble.

@@ -12,7 +12,7 @@ Upload page: https://ctan.org/upload. Build the archive with `./make-ctan.sh`.
 | Home page | https://github.com/slef/leanquote (make public first) |
 | Bug tracker | https://github.com/slef/leanquote/issues |
 | Repository | https://github.com/slef/leanquote |
-| Version | 0.14 2026-10-26 |
+| Version | 0.15 2026-10-26 |
 | Summary | Quote Lean 4 declarations in LaTeX by name |
 | Topics | listing, verbatim, proof (formal), maths (computer-assisted) |
 
