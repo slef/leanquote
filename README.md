@@ -129,6 +129,28 @@ and v4.35.0 (exporter).
 `doc/leanquote-doc.pdf` is the manual. `./make-ctan.sh` rebuilds it and writes the CTAN
 archive `leanquote.zip`.
 
+## Related tools
+
+As far as we know, no other tool quotes Lean declarations by name in an ordinary LaTeX document
+or checks quoted code against the compiled module. Related work (details in the manual):
+
+- **Marker-based inclusion in LaTeX:** [catchfilebetweentags](https://ctan.org/pkg/catchfilebetweentags),
+  [listings](https://ctan.org/pkg/listings) line ranges, [piton](https://ctan.org/pkg/piton),
+  [tagsnip](https://ctan.org/pkg/tagsnip), [minted](https://ctan.org/pkg/minted) `rangeregex`
+  (with Pygments' Lean 4 lexer). Any language; markers or patterns in the source.
+- **Lean-native documents:** [Verso](https://github.com/leanprover/verso) and
+  [SubVerso](https://github.com/leanprover/subverso) include anchored Lean code in documents
+  written in Verso, with Lean's highlighting and mismatch errors.
+- **Blueprints:** [leanblueprint](https://github.com/PatrickMassot/leanblueprint) (`\lean{}`,
+  `checkdecls`) and [LeanArchitect](https://github.com/hanwenzhu/LeanArchitect) link LaTeX and
+  Lean by name without quoting code; they combine with leanquote.
+- **Other proof assistants:** Isabelle document preparation and
+  [cartouches](https://github.com/astahfrom/cartouches), Agda's LaTeX backend,
+  [Alectryon](https://github.com/cpitclaudel/alectryon).
+- **Lean listings style:** [`lstlean.tex`](https://github.com/leanprover/lean4/blob/master/doc/latex/lstlean.tex).
+- The need was raised on the Lean Zulip by Eric Wieser in 2022
+  ([MathemaTeX](https://leanprover-community.github.io/archive/stream/113488-general/topic/MathemaTeX.html)).
+
 ## License
 
 MIT. The Lean logo in `example/` belongs to the Lean FRO and is not part of the CTAN archive.

@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.5, 2026-10-25\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.6, 2026-10-25\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -170,7 +170,7 @@ making these characters active inside listings. Other symbols can be added with 
 in a style of your own (pdf\LaTeX), or by choosing a monospace font that contains them
 (Lua\LaTeX, Xe\LaTeX).
 The package loads \textsf{listings}, \textsf{xcolor}, \textsf{graphicx}, \textsf{amssymb},
-\textsf{pdftexcmds}, and \textsf{tcolorbox} with its \texttt{skins} and \texttt{breakable}
+and \textsf{tcolorbox} with its \texttt{skins} and \texttt{breakable}
 libraries. It writes one temporary file \meta{jobname}\texttt{-leanquote-}\meta{n}\texttt{.lean}
 per listing.
 
@@ -196,13 +196,46 @@ With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
   preserving them can cause false warnings or hide stale code.
 \end{itemize}
 
+\section{Related tools}
+
+Several tools include code from source files in documents; as far as we know, none quotes Lean
+declarations by name in an ordinary \LaTeX{} document or checks the quoted code against the
+compiled module.
+\begin{itemize}
+\item \textbf{Marker-based inclusion in \LaTeX.}
+  \textsf{catchfilebetweentags} (\verb|\ExecuteMetaData|), \textsf{listings} line ranges with
+  marker comments, \textsf{piton} ranges, and \textsf{tagsnip} include the code between markers
+  that the author adds to the source; \textsf{minted}'s \texttt{rangeregex} selects code by a
+  regular expression, and Pygments has a Lean~4 lexer. These work for any language but need
+  markers or patterns, and do not know Lean's declarations.
+\item \textbf{Lean-native documents.} Verso and SubVerso, by the Lean FRO, include anchored
+  regions of Lean modules in documents written in Verso, with Lean's own highlighting, and fail
+  when a code block no longer matches its module; Verso's manual genre also produces \TeX.
+  They are the natural choice for documents written in Lean; \textsf{leanquote} is for
+  papers written in \LaTeX.
+\item \textbf{Blueprints.} \textsf{leanblueprint}'s \verb|\lean{...}| links informal statements to
+  Lean declarations by name, and \texttt{checkdecls} checks that the names exist;
+  LeanArchitect generates blueprint text from annotated Lean declarations
+  (\verb|\inputleannode{...}|). Both connect \LaTeX{} and Lean by name, without quoting code,
+  and can be used together with \textsf{leanquote}.
+\item \textbf{Other proof assistants.} Isabelle's document preparation and the
+  \textsf{cartouches} tool (formerly \textsf{isasnips}), which names snippets after declarations;
+  Agda's \LaTeX{} backend combined with \textsf{catchfilebetweentags}; and Alectryon for Rocq.
+  There the checker itself generates the document, which keeps code and proofs in sync.
+\item \textbf{Lean listings style.} Lean's documentation provides \texttt{lstlean.tex}, a
+  \textsf{listings} definition of Lean with a Unicode table, which inspired ours.
+\end{itemize}
+The idea of including Lean snippets in papers to keep them in sync with the code was raised on
+the Lean Zulip by Eric Wieser in 2022 (thread ``MathemaTeX'').
+
 \section{License and history}
 
 \textsf{leanquote} is released under the MIT License. It grew out of a position paper by the
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.5 (2026-10-25)] LuaLaTeX and XeLaTeX support; documentation.
+\item[0.6 (2026-10-25)] Timestamps compared with \LaTeX3's \verb|\file_compare_timestamp|; related tools.
+\item[0.5] Lua\LaTeX{} and Xe\LaTeX{} support; documentation.
 \item[0.4] Renamed from \textsf{leandecl}; \cs{leanfile} and \cs{leanquote}.
 \item[0.3] Optional exports used automatically when up to date.
 \item[0.2] Direct reading of \texttt{.lean} files; compiled check.

@@ -12,7 +12,7 @@ Upload page: https://ctan.org/upload. Build the archive with `./make-ctan.sh`.
 | Home page | https://github.com/slef/leanquote (make public first) |
 | Bug tracker | https://github.com/slef/leanquote/issues |
 | Repository | https://github.com/slef/leanquote |
-| Version | 0.5 2026-10-25 |
+| Version | 0.6 2026-10-25 |
 | Summary | Quote Lean 4 declarations in LaTeX by name |
 | Topics | listing, verbatim, proof (formal), maths (computer-assisted) |
 
@@ -27,6 +27,6 @@ Description:
 
 Before uploading:
 - [ ] make the GitHub repository public;
-- [ ] review the prior-art check (other packages doing the same) and credit related tools;
+- [x] prior-art check done (`PRIOR-ART.md`); related tools credited in the manual and README;
 - [ ] decide the license (MIT now; LPPL 1.3c is the CTAN default);
 - [ ] read the manual once more.

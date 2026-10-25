@@ -16,7 +16,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-25}{0.5}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-25}{0.6}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -260,7 +260,6 @@
   }
 
 % Compare modification dates of a `.lean` file and its compiled `.olean` (once per file per run).
-\RequirePackage{pdftexcmds}
 \str_new:N \l__leanquote_olean_str
 \cs_new_protected:Npn \__leanquote_check_compiled:nn #1#2
   {% #1 = source path as read, #2 = path relative to the Lake project root
@@ -275,10 +274,7 @@
           { \str_set:NV \l__leanquote_olean_str \l_leanquote_olean_tl }
         \file_if_exist:VTF \l__leanquote_olean_str
           {
-            \str_compare:eNeT
-              { \str_range:enn { \use:c { pdf@filemoddate } {#1} } {3} {16} }
-              >
-              { \str_range:enn { \use:c { pdf@filemoddate } { \l__leanquote_olean_str } } {3} {16} }
+            \file_compare_timestamp:nNnT {#1} > { \l__leanquote_olean_str }
               { \msg_warning:nnnV { leanquote } { uncompiled } {#1} \l__leanquote_olean_str }
           }
           { \msg_info:nnnV { leanquote } { no-olean } {#1} \l__leanquote_olean_str }
