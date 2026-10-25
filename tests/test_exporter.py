@@ -1,7 +1,8 @@
 """Exporter regressions: python3 tests/test_exporter.py (stdlib + Lean/Lake + sh).
 
 Set LEANQUOTE_LEAN_TOOLCHAIN to select an installed Elan toolchain, e.g.
-leanprover/lean4:v4.35.0. No TeX installation or network access is needed.
+leanprover/lean4:v4.35.0. TeX is optional for the writer/reader integration test;
+the remaining exporter tests need no TeX installation or network access.
 """
 
 import json
@@ -206,6 +207,68 @@ class ExporterTests(unittest.TestCase):
         self.assertFalse(any(name.startswith("_private.") for name in self.entries))
         self.assertIn("Example.assumed", self.entries["Example.usesAssumed"]["axioms"])
         self.assertIn("sorryAx", self.entries["Example.unfinished"]["axioms"])
+
+    def test_modern_module_private_declarations(self):
+        config = self.work / "lakefile.toml"
+        old = config.read_text(encoding="utf-8")
+        modern = self.src.with_name("Modern.lean")
+        modern.write_text(
+            "module\npublic import Init\nnamespace Example\n"
+            "private def hiddenValue : Nat := 1\n"
+            "private theorem hiddenTruth : True := by trivial\n"
+            "public theorem usesHidden : True := hiddenTruth\nend Example\n",
+            encoding="utf-8",
+        )
+        try:
+            config.write_text(old + '''
+[[lean_lib]]
+name = "Modern"
+srcDir = "lib-src"
+''', encoding="utf-8")
+            run(self.work, self.shell, native_path(WRAPPER), "Modern")
+            path = self.out.with_name("Modern.leanquote")
+            _, entries, _ = parse_export(path.read_text(encoding="utf-8"))
+            self.assertEqual(entries["Example.hiddenValue"]["code"],
+                             ["private def hiddenValue : Nat := 1"])
+            self.assertEqual(entries["Example.hiddenTruth"]["axioms"], [])
+            self.assertEqual(entries["Example.usesHidden"]["axioms"], [])
+        finally:
+            config.write_text(old, encoding="utf-8")
+            modern.unlink()
+
+    @unittest.skipUnless(shutil.which(os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")),
+                         "TeX is not installed")
+    def test_latex_rejects_old_export_after_dependency_rebuild(self):
+        engine = os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")
+        old = self.dep.read_text(encoding="utf-8")
+        shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
+        (self.work / "provenance.tex").write_text(r"""
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{leanquote}
+\leanquotesetup{box=false,verify=true}
+\renewcommand{\leanquotebadgetext}[1]{\typeout{LEANQUOTE-BADGE:#1}}
+\begin{document}
+\leanquote[file=package-src/lib-src/Demo.lean]{Example.usesDependency}
+\end{document}
+""", encoding="utf-8")
+        try:
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
+            original = self.out.read_text(encoding="utf-8")
+            self.dep.write_text("theorem dependency : True := by sorry\n", encoding="utf-8")
+            run(self.work, "lake", "-H", "build", "Demo")
+            self.assertEqual(self.out.read_text(encoding="utf-8"), original)
+            output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode",
+                         "provenance.tex")
+            self.assertIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
+            output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode",
+                         "provenance.tex")
+            self.assertIn("LEANQUOTE-BADGE:USES SORRY", output)
+            self.assertNotIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+        finally:
+            self.dep.write_text(old, encoding="utf-8")
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
 
     def test_same_line_and_unicode_positions(self):
         self.assertEqual(self.code("sameA"), "def sameA : Nat := 3")
