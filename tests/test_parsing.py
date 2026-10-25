@@ -112,13 +112,78 @@ IMPORTS = source('''
     def text : String := "import Fake.String"
 ''')
 
+INTERPOLATION = source(r'''
+    def text : String := s!"{"first
+    def phantom : Nat := 99
+    last"}"
+    def nested : String := s!"outer {s!"inner {r##"first
+    def rawGhost : Nat := 99
+    last"##}"} tail"
+    def holes : String := s!"{ /- } " /- nested -/ -/
+      ( { val := 1, isLt := by decide } : Fin 2).val
+      -- } "
+    } {'}'} {'"'} {'{'} {'\\'}"
+    theorem interpolation : s!"{"first
+    := ] -- /-
+    last"}" = s!"{"first
+    := ] -- /-
+    last"}" := by
+      rfl
+    theorem nestedInterpolation : s!"{s!"{r#"a := ] } "#}"}" = "a := ] } " := by
+      rfl
+    def afterInterpolation : Nat := 7
+''')
+
+ESCAPED_NAMES = source('''
+    namespace «A B»
+    def foo : Nat := 1
+    namespace «C D».Deep
+    def «value with spaces» : Nat := 2
+    def «dot.name».«leaf name» : Nat := 3
+    def _root_.«global name» : Nat := 4
+    end «C D».Deep
+    def after : Nat := 5
+    end «A B»
+    namespace «A.B»
+    def foo : Nat := 6
+    end «A.B»
+    namespace «comment/- and "quote»
+    def «dash-- and /- comment» : Nat := 7
+    end «comment/- and "quote»
+    def «ordinary» : Nat := 8
+''')
+
+MULTILINE_IMPORTS = source('''
+    /- header
+    -/ import /- before module -/ Init /- first
+    continued /- nested -/ -/ /- second -/ import Lean /- third
+    -/ /- fourth -/
+    import Init.«Data».Nat.Basic /- fifth -/ -- sixth
+    def after : Nat := 1
+''')
+
 
 class ParsingTests(unittest.TestCase):
-    def compile(self, lean, body, *, success=True, export=None):
+    def check_lean(self, work, filename, *, olean=False):
+        command = ["lean"]
+        if olean:
+            command += ["-o", str(Path(filename).with_suffix(".olean"))]
+        result = subprocess.run(
+            command + [filename], cwd=work, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+            errors="replace", timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        if olean:
+            self.assertTrue((work / Path(filename).with_suffix(".olean")).is_file())
+
+    def compile(self, lean, body, *, success=True, export=None, olean=False):
         with tempfile.TemporaryDirectory(prefix="leanquote-parsing-") as directory:
             work = Path(directory)
             shutil.copyfile(PACKAGE, work / "leanquote.sty")
             (work / "Fixture.lean").write_text(lean, encoding="utf-8")
+            if olean:
+                self.check_lean(work, "Fixture.lean", olean=True)
             if export is not None:
                 (work / "Saved.leanquote").write_text(export, encoding="utf-8")
             (work / "parsing.tex").write_text("\n".join([
@@ -162,6 +227,32 @@ class ParsingTests(unittest.TestCase):
             with self.subTest(name=name):
                 _, output = self.compile(NAMESPACES, r"\leanquote{" + name + "}", success=False)
                 self.assertIn("not found", output)
+
+    def test_escaped_namespace_and_declaration_components(self):
+        snippets, _ = self.compile(ESCAPED_NAMES, r'''
+\leanquote{«A B».foo}
+\leanquote{«A B».«C D».Deep.«value with spaces»}
+\leanquote{Deep.«dot.name».«leaf name»}
+\leanquote{«global name»}
+\leanquote{_root_.«global name»}
+\leanquote{_root_.«A B».foo}
+\leanquote{«A B».after}
+\leanquote{«A.B».foo}
+\leanquote{«comment/- and "quote».«dash-- and /- comment»}
+\leanquote{ordinary}
+''')
+        self.assertEqual(snippets, [
+            "def foo : Nat := 1", "def «value with spaces» : Nat := 2",
+            "def «dot.name».«leaf name» : Nat := 3",
+            "def _root_.«global name» : Nat := 4",
+            "def _root_.«global name» : Nat := 4", "def foo : Nat := 1", "def after : Nat := 5",
+            "def foo : Nat := 6", 'def «dash-- and /- comment» : Nat := 7',
+            "def «ordinary» : Nat := 8",
+        ])
+        for name in ["A.B.foo", "B».foo", "«A B».«global name»", "name».«leaf name»", "_root_.foo"]:
+            with self.subTest(name=name):
+                _, output = self.compile(ESCAPED_NAMES, r"\leanquote{" + name + "}", success=False)
+                self.assertRegex(output, r"not\s+(?:\(leanquote\)\s*)?found")
 
     def test_nested_comments_strings_and_documentation(self):
         snippets, output = self.compile(COMMENTS, r"\leanquote[doc]{phantom}\leanquote{text}")
@@ -214,15 +305,81 @@ class ParsingTests(unittest.TestCase):
         snippets, _ = self.compile("", r"\leanquote[file=Saved.leanquote,proof=false]{escaped}", export=exported)
         self.assertEqual(snippets, [declaration.split(" := by")[0] + " := ..."])
 
+    def test_export_inline_doc_theorem_keeps_leading_space(self):
+        exported = ("@@leanquote-export 2\n@@begin inline\n@@axioms\n"
+                    "@@doc /-- Inline documentation. -/\n"
+                    "@@code  theorem inline : True := by\n@@code   trivial\n@@end\n")
+        snippets, _ = self.compile("", r"\leanquote[file=Saved.leanquote,doc,proof=false]{inline}", export=exported)
+        self.assertEqual(snippets, ["/-- Inline documentation. -/\n theorem inline : True := ..."])
+
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_compiled_interpolated_strings_do_not_declare_phantoms(self):
+        for name in ["phantom", "rawGhost"]:
+            with self.subTest(name=name):
+                _, output = self.compile(
+                    INTERPOLATION,
+                    r"\leanquote[file=Fixture.lean,olean=Fixture.olean,verify=true]{" + name + "}",
+                    success=False, olean=True,
+                )
+                self.assertIn("not found", output)
+                self.assertNotIn("UNVERIFIED", output)
+
+    def test_interpolation_proof_cuts_preserve_source_offsets(self):
+        snippets, _ = self.compile(INTERPOLATION, r'''
+\leanquote{text}
+\leanquote{nested}
+\leanquote{holes}
+\leanquote[proof=false]{interpolation}
+\leanquote[proof=false]{nestedInterpolation}
+\leanquote{afterInterpolation}
+''')
+        declarations = ["def text", "def nested", "def holes", "theorem interpolation",
+                        "theorem nestedInterpolation", "def afterInterpolation"]
+        expected = []
+        for index, header in enumerate(declarations):
+            declaration = header + INTERPOLATION.split(header, 1)[1]
+            if index + 1 < len(declarations):
+                declaration = declaration.split(declarations[index + 1], 1)[0]
+            if header.startswith("theorem"):
+                declaration = declaration.split(" := by", 1)[0] + " := ..."
+            expected.append(declaration.strip())
+        self.assertEqual(snippets, expected)
+        exported = ("@@leanquote-export 1\n@@begin interpolation\n@@axioms\n" +
+                    expected[3].removesuffix(" := ...") + " := by\n  rfl\n@@end\n")
+        saved, _ = self.compile("", r"\leanquote[file=Saved.leanquote,proof=false]{interpolation}", export=exported)
+        self.assertEqual(saved, [expected[3]])
+
     def test_imports_skip_nested_comments_between_commands(self):
         snippets, _ = self.compile(IMPORTS, r"\leanquoteimports")
         self.assertEqual(snippets, [
             "module\npublic import Init\nmeta import Lean\n"
-            "import Init.Data.Nat.Basic -- retained trailing comment",
+            "import Init.Data.Nat.Basic",
         ])
         exported = "@@leanquote-export 1\n" + "".join("@@src " + line + "\n" for line in IMPORTS.splitlines())
         saved, _ = self.compile("", r"\leanquoteimports[file=Saved.leanquote]", export=exported)
         self.assertEqual(saved, snippets)
+
+    def test_import_comments_spanning_command_lines(self):
+        for lean in [MULTILINE_IMPORTS, source('''
+            import Init /- comment
+            continued -/
+            import Lean
+        '''), source('''
+            /- header
+            -/ import Init
+            import Lean
+        ''')]:
+            with self.subTest(lean=lean):
+                snippets, _ = self.compile(lean, r"\leanquoteimports")
+                exported = "@@leanquote-export 1\n" + "".join(
+                    "@@src " + line + "\n" for line in lean.splitlines())
+                saved, _ = self.compile("", r"\leanquoteimports[file=Saved.leanquote]", export=exported)
+                self.assertEqual(saved, snippets)
+                self.assertNotIn("/-", snippets[0])
+                self.assertNotIn("-/", snippets[0])
+                self.assertEqual(snippets[0].split(), [
+                    "import", "Init", "import", "Lean", "import", "Init.«Data».Nat.Basic",
+                ] if lean == MULTILINE_IMPORTS else ["import", "Init", "import", "Lean"])
 
     def test_fake_imports_do_not_start_a_header(self):
         snippets, output = self.compile(source('''
@@ -241,16 +398,13 @@ class ParsingTests(unittest.TestCase):
             for name, content in [
                 ("Namespaces", NAMESPACES), ("Comments", COMMENTS),
                 ("Metadata", METADATA), ("Proofs", PROOFS), ("Imports", IMPORTS),
+                ("Interpolation", INTERPOLATION), ("EscapedNames", ESCAPED_NAMES),
+                ("MultilineImports", MULTILINE_IMPORTS),
             ]:
                 with self.subTest(fixture=name):
                     filename = name + ".lean"
                     (work / filename).write_text(content, encoding="utf-8")
-                    result = subprocess.run(
-                        ["lean", filename], cwd=work, stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                        errors="replace", timeout=60,
-                    )
-                    self.assertEqual(result.returncode, 0, result.stdout)
+                    self.check_lean(work, filename, olean=True)
 
 
 if __name__ == "__main__":
