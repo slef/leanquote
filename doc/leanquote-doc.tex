@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.13, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.14, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -272,7 +272,10 @@ The \texttt{leanquote} style colours four classes of words: keywords and command
 common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{Nat},
 \texttt{Fin}, \texttt{Set}, \texttt{Finset}, \texttt{List}, \texttt{Real},
 \texttt{Polynomial}, \dots) in green; common tactics (\texttt{simp}, \texttt{exact},
-\texttt{omega}, \dots) in purple; and \texttt{sorry} in red. The colours are
+\texttt{omega}, \dots) in purple; and \texttt{sorry} in red. A word directly after a dot is
+part of a qualified name and is not coloured: in \texttt{Set.univ} the head \texttt{Set} is green,
+but import paths such as \texttt{Mathlib.MeasureTheory.Measure.Lebesgue.Basic} and fields such as
+\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colours are
 \texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
 redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
 \opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
@@ -360,7 +363,8 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
-\item[0.13 (2026-10-26)] Common Mathlib types, tactics and \texttt{sorry} coloured; listings
+\item[0.14 (2026-10-26)] Words after a dot (import paths, qualified names) are not coloured.
+\item[0.13] Common Mathlib types, tactics and \texttt{sorry} coloured; listings
   settings in \cs{leanquotesetup} are kept for the whole document; \cs{leanfile} available in the
   preamble.
 \item[0.12] \opt{proof=false} hides proofs of theorems and lemmas.

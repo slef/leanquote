@@ -17,7 +17,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-26}{0.13}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.14}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -845,6 +845,16 @@
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
 \definecolor{leanquotetactic}{RGB}{136,84,150}
+% A word right after a dot is part of a qualified name (Mathlib.MeasureTheory.Measure, x.Set):
+% it is not coloured as a keyword, type or tactic. The head of a name (Set in Set.univ) still is.
+\lst@Key{leanquotenodot}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquotenodot}
+\lst@AddToHook{Output}{%
+  \lst@ifleanquotenodot
+    \ifx\lst@lastother.%
+      \ifx\lst@currstyle\relax \let\lst@thestyle\lst@identifierstyle
+      \else \let\lst@thestyle\lst@currstyle \fi
+    \fi
+  \fi}
 % Lean's Unicode symbols, typeset as math. Under pdfLaTeX they become listings `literate`
 % replacements; under LuaLaTeX and XeLaTeX they are made active inside listings.
 \def\leanquote@table{%
@@ -982,7 +992,7 @@
   {
     \exp_not:N \lstdefinestyle { leanquote }
       {
-        \exp_not:n {language=leanquote-lean, basicstyle=\ttfamily\small, columns=fullflexible,
+        \exp_not:n {language=leanquote-lean, leanquotenodot, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
   keywordstyle=\bfseries\color{leanquotekeyword}, keywordstyle=[2]\color{leanquotetype},
   keywordstyle=[3]\color{leanquotetactic}, keywordstyle=[4]\bfseries\color{red!75!black},

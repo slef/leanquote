@@ -113,7 +113,9 @@ Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for
 | any other key | | passed to listings (e.g. `basicstyle=\footnotesize\ttfamily`); in `\leanquotesetup` it applies to all later quotes |
 
 The default style colours keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
-`Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). Add
+`Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). A word right after a dot is not coloured, so `Set`
+is green in `Set.univ` but import paths like `Mathlib.MeasureTheory.Measure.Lebesgue.Basic` stay
+plain. Add
 your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Point}}` (`[3]` for tactics);
 the colours are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 
