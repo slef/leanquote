@@ -12,14 +12,14 @@ Upload page: https://ctan.org/upload. Build the archive with `./make-ctan.sh`.
 | Home page | https://github.com/slef/leanquote |
 | Bug tracker | https://github.com/slef/leanquote/issues |
 | Repository | https://github.com/slef/leanquote |
-| Version | 0.17 2026-10-26 |
+| Version | 0.18 2026-10-26 |
 | Summary | Quote Lean 4 declarations in LaTeX by name |
 | Topics | listing, verbatim, proof (formal), maths (computer-assisted) |
 
 Description:
 
 > leanquote typesets declarations of a Lean 4 file in a LaTeX document by name:
-> `\leanquotefile{Abstract.lean}` followed by `\leanquote{main_theorem}` prints the declaration exactly
+> `\leanquotesetup{file=Abstract.lean}` followed by `\leanquote{main_theorem}` prints the declaration exactly
 > as it appears in the Lean source, read at compile time, avoiding pasted copies.
 > Unknown names are errors, and the package warns when local build or export metadata is stale.
 > An optional exporter uses Lean's exact declaration boundaries and checks axiom dependencies.

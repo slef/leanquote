@@ -45,7 +45,7 @@ class VerificationTests(TexTestCase):
     def test_empty_and_bare_listings_options(self):
         for setup in [
             r"\leanquotesetup{keywordstyle={}}",
-            r"\leanquotefile[keywordstyle={}]{A.lean}",
+            r"\leanquotesetup{file=A.lean,keywordstyle={}}",
             "",
         ]:
             with self.subTest(setup=setup):

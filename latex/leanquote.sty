@@ -1,9 +1,10 @@
 % leanquote.sty -- typeset Lean declarations by name, copied verbatim from Lean sources.
 %
 %   \leanquotesetup{project=../lean/}            % root of the Lake project (optional)
-%   \leanquotefile{Path/To/File.lean}              % current file
+%   \leanquotesetup{file=Path/To/File.lean}       % default file
 %   \leanquote[options]{Name1, Name2, ...}        % quote from the current file
-%   \leanquoteimports[options]                    % its import block (or the name :imports)
+%   \leanquote[imports]{}                        % its import block
+%   \leanquote[imports]{Name1, Name2, ...}       % imports, then declarations
 %   \leanquote[file=Path/To/File.lean,options]{Name1, Name2, ...}   % explicit file
 %
 % A declaration is found by its `def`/`theorem`/... line in column 0 and runs while lines are
@@ -17,7 +18,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-26}{0.17}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.18}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -42,6 +43,9 @@
     doc   .bool_set:N = \l_leanquote_doc_bool ,
     doc   .default:n  = true ,
     doc   .initial:n  = false ,
+    imports .bool_set:N = \l_leanquote_imports_bool ,
+    imports .default:n  = true ,
+    imports .initial:n  = false ,
     proof .bool_set:N = \l_leanquote_proof_bool ,
     proof .default:n  = true ,
     proof .initial:n  = true ,
@@ -72,9 +76,8 @@
     \tl_if_blank:VF \l__leanquote_unknown_tl
       { \tl_put_right:Ne \l__leanquote_lst_tl { , \exp_not:V \l__leanquote_unknown_tl } }
   }
-\cs_generate_variant:Nn \__leanquote_options:n { V }
 % Listings settings given to \leanquotesetup (unknown keys) are kept for the whole document
-% (or group); those given to a quote or \leanquotefile are added to them.
+% (or group); those given to a quote are added to them.
 \tl_new:N \l__leanquote_setuplst_tl
 \NewDocumentCommand \leanquotesetup { m }
   {
@@ -796,7 +799,6 @@
     \ior_close:N \g__leanquote_ior
   }
 \cs_generate_variant:Nn \__leanquote_imports:n { V }
-\str_const:Nn \c__leanquote_imports_str { :imports }
 \bool_new:N \l__leanquote_hasdecl_bool
 
 \cs_new_protected:Npn \__leanquote_from_source:n #1
@@ -1124,6 +1126,15 @@
       { \c_sys_jobname_str -leanquote- \int_use:N \g__leanquote_count_int .lean }
     \iow_open:Nn \g__leanquote_iow { \l__leanquote_out_str }
     \bool_set_true:N \l__leanquote_first_bool
+    \bool_if:NT \l_leanquote_imports_bool
+      {
+        \seq_clear:N \l__leanquote_buf_seq
+        \__leanquote_imports:V \l__leanquote_file_str
+        \bool_if:NF \l__leanquote_found_bool
+          { \msg_error:nnV { leanquote } { no-imports } \l__leanquote_file_str }
+        \__leanquote_flush:
+        \bool_set_false:N \l__leanquote_first_bool
+      }
     \clist_map_inline:nn {#2}
       {
         \tl_set:Ne \l_tmpa_tl { \tl_to_str:n {##1} }
@@ -1132,24 +1143,16 @@
         \bool_if:NF \l__leanquote_first_bool { \iow_now:Nn \g__leanquote_iow { } }
         \seq_clear:N \l__leanquote_buf_seq
         \bool_set_false:N \l__leanquote_first_bool
-        \str_if_eq:NNTF \l__leanquote_name_str \c__leanquote_imports_str
+        \bool_set_true:N \l__leanquote_hasdecl_bool
+        \bool_if:NTF \l__leanquote_useexport_bool
+          { \__leanquote_from_export:V \l__leanquote_export_str }
           {
-            \__leanquote_imports:V \l__leanquote_file_str
-            \bool_if:NF \l__leanquote_found_bool
-              { \msg_error:nnV { leanquote } { no-imports } \l__leanquote_file_str }
+            \str_if_eq:eeTF { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
+              { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
+              { \__leanquote_from_export:n {#1} }
           }
-          {
-            \bool_set_true:N \l__leanquote_hasdecl_bool
-            \bool_if:NTF \l__leanquote_useexport_bool
-              { \__leanquote_from_export:V \l__leanquote_export_str }
-              {
-                \str_if_eq:eeTF { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
-                  { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
-                  { \__leanquote_from_export:n {#1} }
-              }
-            \bool_if:NF \l__leanquote_found_bool
-              { \msg_error:nnVV { leanquote } { not-found } \l__leanquote_name_str \l__leanquote_file_str }
-          }
+        \bool_if:NF \l__leanquote_found_bool
+          { \msg_error:nnVV { leanquote } { not-found } \l__leanquote_name_str \l__leanquote_file_str }
         \int_compare:nNnT { \l__leanquote_matches_int } > { 1 }
           { \msg_warning:nnVn { leanquote } { ambiguous } \l__leanquote_name_str {#1} }
         \__leanquote_flush:
@@ -1186,24 +1189,14 @@
       }
     \bool_if:NT \l_leanquote_box_bool { \end{leanquotebox} }
   }
-% \leanquotefile[options]{file}: set the default file and options for later quotes.
-\tl_new:N \l__leanquote_fileopts_tl
 \msg_new:nnn { leanquote } { no-current-file }
-  { No~Lean~file~specified.~Set~a~default~with~\token_to_str:N \leanquotefile\
+  { No~Lean~file~specified.~Set~file=...~with~\token_to_str:N \leanquotesetup\
     or~pass~file=...~in~the~quote~options. }
-\NewDocumentCommand \leanquotefile { O{} m }
-  {
-    \tl_set:Nn \l_leanquote_file_tl {#2}
-    \tl_set:Nn \l__leanquote_fileopts_tl {#1}
-  }
-% \leanquoteimports[options]: quote imports, optionally from an explicit file.
-\NewDocumentCommand \leanquoteimports { O{} } { \leanquote[#1]{:imports} }
 % \leanquote[options]{names}: quote declarations from the default file or file=.
 \NewDocumentCommand \leanquote { O{} m }
   {
     \group_begin:
       \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
-      \__leanquote_options:V \l__leanquote_fileopts_tl
       \__leanquote_options:n {#1}
       \tl_if_blank:VTF \l_leanquote_file_tl
         { \msg_error:nn { leanquote } { no-current-file } }

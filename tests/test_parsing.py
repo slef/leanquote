@@ -190,7 +190,7 @@ class ParsingTests(unittest.TestCase):
                 r"\documentclass{article}", r"\usepackage[T1]{fontenc}",
                 r"\usepackage{leanquote}",
                 r"\leanquotesetup{verify=false,box=false}",
-                r"\leanquotefile{Fixture.lean}",
+                r"\leanquotesetup{file=Fixture.lean}",
                 r"\begin{document}", body, r"\end{document}", "",
             ]), encoding="utf-8")
             result = subprocess.run(
@@ -350,13 +350,13 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(saved, [expected[3]])
 
     def test_imports_skip_nested_comments_between_commands(self):
-        snippets, _ = self.compile(IMPORTS, r"\leanquoteimports")
+        snippets, _ = self.compile(IMPORTS, r"\leanquote[imports]{}")
         self.assertEqual(snippets, [
             "module\npublic import Init\nmeta import Lean\n"
             "import Init.Data.Nat.Basic",
         ])
         exported = "@@leanquote-export 1\n" + "".join("@@src " + line + "\n" for line in IMPORTS.splitlines())
-        saved, _ = self.compile("", r"\leanquoteimports[file=Saved.leanquote]", export=exported)
+        saved, _ = self.compile("", r"\leanquote[imports,file=Saved.leanquote]{}", export=exported)
         self.assertEqual(saved, snippets)
 
     def test_import_comments_spanning_command_lines(self):
@@ -370,10 +370,10 @@ class ParsingTests(unittest.TestCase):
             import Lean
         ''')]:
             with self.subTest(lean=lean):
-                snippets, _ = self.compile(lean, r"\leanquoteimports")
+                snippets, _ = self.compile(lean, r"\leanquote[imports]{}")
                 exported = "@@leanquote-export 1\n" + "".join(
                     "@@src " + line + "\n" for line in lean.splitlines())
-                saved, _ = self.compile("", r"\leanquoteimports[file=Saved.leanquote]", export=exported)
+                saved, _ = self.compile("", r"\leanquote[imports,file=Saved.leanquote]{}", export=exported)
                 self.assertEqual(saved, snippets)
                 self.assertNotIn("/-", snippets[0])
                 self.assertNotIn("-/", snippets[0])
@@ -387,7 +387,7 @@ class ParsingTests(unittest.TestCase):
             import Fake.Comment
             -/
             def text : String := "import Fake.String"
-        '''), r"\leanquoteimports", success=False)
+        '''), r"\leanquote[imports]{}", success=False)
         self.assertEqual(snippets, [""])
         self.assertIn("No import lines found", output)
 

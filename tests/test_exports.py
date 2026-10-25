@@ -5,6 +5,34 @@ from tex_support import TexTestCase
 
 
 class ExportTests(TexTestCase):
+    def test_imports_with_exports_preserve_declaration_verification(self):
+        declaration = "theorem bad : True := by sorry\n"
+        source = "import Init\n\n" + declaration
+        files = export_files(source, name="bad", axioms="sorryAx")
+        files["A.leanquote"] = make_export(
+            declaration, source=source, name="bad", axioms="sorryAx",
+        )
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[imports,file=A.lean,verify=true]{bad}
+\leanquote[imports,file=A.leanquote,verify=true]{bad}
+\leanquote[imports,file=A.leanquote,verify=true]{}
+""")
+        self.assertEqual(snippets, [source.strip(), source.strip(), "import Init"])
+        self.assertEqual(output.count("LEANQUOTE-BADGE:USES SORRY"), 2)
+        self.assertNotIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+
+    def test_imports_follow_current_source_after_stale_export_fallback(self):
+        current = "import Lean\n\ndef value : Nat := 2\n"
+        files = export_files(current)
+        files["A.leanquote"] = make_export(
+            "def value : Nat := 1\n", source="import Init\n\ndef value : Nat := 1\n",
+        )
+        snippets, output = self.compile_tex(
+            files, r"\leanquote[imports,file=A.lean,verify=true]{value}",
+        )
+        self.assertEqual(snippets, [current.strip()])
+        self.assertIn("Reading A.lean directly", " ".join(output.split()))
+
     def test_line_boundaries_cannot_collide(self):
         old = 'def text : String := "a|\nb"\n'
         current = 'def text : String := "a\n|b"\n'

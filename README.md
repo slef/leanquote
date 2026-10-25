@@ -5,7 +5,7 @@ Lean actually compiled.
 
 ```latex
 \usepackage{leanquote}
-\leanquotefile{Abstract.lean}
+\leanquotesetup{file=Abstract.lean}
 ...
 $P$ \emph{tiles} $\mathbb{Z}^3$ if some set $T$ of translations puts every point in exactly
 one translate $t + P$:
@@ -29,26 +29,32 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \usepackage{leanquote}
 \leanquotesetup{project=../lean/}           % root of your Lake project
 ...
-\leanquotefile{TranslationTiling/Abstract.lean} % default file for the following quotes
+\leanquotesetup{file=TranslationTiling/Abstract.lean} % default file for following quotes
 \leanquote{Point, Prototile}
 \leanquote[doc]{Tiles}                      % with its doc comment
 \leanquote[proof=false]{main_theorem}       % statement only, proof shown as := ...
 \leanquote[file=Other/File.lean]{foo}       % one-off quote from another file
-\leanquoteimports                           % the import block of the current file
-\leanquoteimports[file=Other/File.lean]     % imports from another file
+\leanquote[imports]{Point, Prototile}      % imports, then declarations in one listing
+\leanquote[imports]{}                     % only the import block of the current file
+\leanquote[imports,file=Other/File.lean]{} % imports from another file
 ```
 
-`\leanquotefile[options]{file}` sets the default file and options for following quotes; it works
-in the preamble too. `\leanquote[options]{names}` quotes from it. The `file=...` option selects
-a file for just that call, without changing the default, and works without a preceding
-`\leanquotefile`. A file must be supplied by one of these methods.
-`\leanquoteimports[options]` quotes the file's import block (the `module` and
-`[public] import` lines at its top); it can also be named `:imports` in a list, as in
-`\leanquote{:imports, Point}`. Both forms accept `file=...` and omit comments from imports.
+These are the two main commands: `\leanquotesetup{options}` sets defaults for following
+quotes, and `\leanquote[options]{names}` quotes declarations from the selected file.
+Setup works in the preamble and follows normal TeX group scope. A per-call `file=...`
+selects a file without changing the default, and works without preceding setup.
+A file must be supplied by one of these methods.
 
-All public commands use the `\leanquote` prefix. The former `\leanfile` alias and
-`\leanfilequote{file}{names}` command were removed in v0.16; use `\leanquotefile{file}` and
-`\leanquote[file=file]{names}`, respectively.
+The Boolean `imports` option prepends the import block once, before the named declarations,
+in the same listing. `\leanquote[imports]{}` quotes only that block: the `module` and
+`[public|private|meta] import` lines at the top of the file, with comments omitted.
+It defaults to false; bare `imports` means `imports=true`. An enabled setup default can
+be overridden with `imports=false` for one quote. Names such as `import` and `imports`
+remain ordinary declaration lookups.
+
+Version 0.18 removes `\leanquotefile`, `\leanquoteimports`, and the `:imports` selector;
+use `\leanquotesetup{file=...}` and the `imports` option instead. The former `\leanfile`
+and `\leanfilequote{file}{names}` commands were removed in v0.16. There are no compatibility aliases.
 
 No step on the Lean side beyond your usual `lake build`:
 
@@ -112,13 +118,14 @@ Nothing is added to your Lean project.
 
 ## Options
 
-Set per quote (`\leanquote[doc]{...}`), per file (`\leanquotefile[...]{...}`), or for the whole document
-(`\leanquotesetup{...}`).
+Set per quote (`\leanquote[doc]{...}`), or set defaults for the document or current group
+with `\leanquotesetup{...}`. Per-call options override defaults for that quote only.
 
 | Option | Default | Meaning |
 |---|---|---|
 | `file=<path>` | current file | select the file to quote; per-call overrides leave the default unchanged |
 | `doc` | false | also show each declaration's doc comment |
+| `imports` | false | prepend the import block once; an empty name list quotes only imports |
 | `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. Put `\leanquotetrademark` (the notice "Lean and the Lean logo are trademarks of Lean FRO.") once in the paper, e.g. in the acknowledgments. |
@@ -142,12 +149,13 @@ the colours are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 and the one-argument forms read naturally:
 
 ```
-\leanquotefile: Abstract.lean
+\leanquotesetup: file=Abstract.lean
 \leanquote: main_theorem
 ```
 
 (With an option, use braces: `\leanquote[doc]{main_theorem}`; Texlish's colon form does not
 take an optional argument.)
+Use `\leanquote[imports]{}` for imports only.
 
 ## Example
 
@@ -171,6 +179,8 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 - The default style typesets about a hundred of Lean's Unicode symbols as math, under pdfLaTeX,
   LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a monospace font that
   has them (LuaLaTeX, XeLaTeX).
+- Quotes work in figure bodies, ordinary macro arguments, and footnotes; this does not imply
+  support for complete listings in moving arguments such as caption or heading text.
 
 Tested with pdfLaTeX, LuaLaTeX and XeLaTeX from TeX Live 2025, and with Lean v4.26.0,
 v4.29.1, v4.31.0 and v4.35.0 (exporter).
