@@ -202,6 +202,8 @@ class ExporterTests(unittest.TestCase):
         self.assertEqual(self.code("multiDoc"), " def multiDoc : Nat := 2")
 
     def test_private_names_and_axioms(self):
+        self.assertIn("\n@@axioms\n", self.text)  # explicit empty dependency list
+        self.assertNotIn("\n@@axioms \n", self.text)
         self.assertEqual(self.code("secret"), "private def secret : Nat := 2")
         self.assertIn("sorryAx", self.entries["Example.hidden"]["axioms"])
         self.assertFalse(any(name.startswith("_private.") for name in self.entries))
@@ -291,6 +293,43 @@ srcDir = "lib-src"
         self.direct("package-src/lib-src/Demo.lean")
         direct = (self.work / "direct.leanquote").read_text(encoding="utf-8")
         self.assertEqual(direct, self.text)
+
+    def test_cached_lean_lakefile_loads_native_support(self):
+        # Unlike the TOML fixtures, cached Lean configurations exercise Lake's
+        # native configuration loader. The unbootstrapped --run exporter aborts
+        # in the IR interpreter here, without needing Mathlib or any downloads.
+        with tempfile.TemporaryDirectory(prefix="leanquote-lean-config-") as directory:
+            work = Path(directory)
+            if (self.work / "lean-toolchain").exists():
+                shutil.copyfile(self.work / "lean-toolchain", work / "lean-toolchain")
+            (work / "lakefile.lean").write_text('''import Lake
+open Lake DSL
+package exporter_lean_fixture where
+  srcDir := "src"
+  buildDir := "artifacts"
+  leanLibDir := "objects"
+lean_lib Demo
+''', encoding="utf-8")
+            (work / "src").mkdir()
+            source = "/-- A theorem from a Lean-configured project. -/\n" \
+                     "theorem value : True := by sorry\n"
+            (work / "src/Demo.lean").write_text(source, encoding="utf-8")
+            run(work, "lake", "build", "Demo")  # populate the configuration cache
+            run(work, self.shell, native_path(WRAPPER), "Demo")
+            exported = work / ".lake/build/leanquote/src/Demo.leanquote"
+            text = exported.read_text(encoding="utf-8")
+            headers, entries, snapshot = parse_export(text)
+            self.assertEqual(headers["@@source"], "src/Demo.lean")
+            self.assertEqual(headers["@@olean"], "artifacts/objects/Demo.olean")
+            trace = json.loads((work / "artifacts/objects/Demo.trace")
+                               .read_text(encoding="utf-8"))
+            self.assertEqual(headers["@@trace"], trace["depHash"])
+            self.assertIn("sorryAx", entries["value"]["axioms"])
+            self.assertEqual(snapshot, source.splitlines())
+            # The documented direct CLI must bootstrap too, with no extra flags.
+            run(work, "lake", "env", "lean", "--run", native_path(CLI),
+                "Demo", "src/Demo.lean", "direct.leanquote")
+            self.assertEqual((work / "direct.leanquote").read_text(encoding="utf-8"), text)
 
     def test_crlf_source_positions_and_doc_split(self):
         old = self.src.read_bytes()

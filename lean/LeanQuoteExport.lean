@@ -19,8 +19,37 @@ open Lean System
 
 namespace LeanQuoteExport
 
+-- Capture the script's path during elaboration, including for relative --run paths.
+elab "leanquoteExporterFile%" : term => return toExpr (← getFileName)
+private def exporterFile : String := leanquoteExporterFile%
+
 def fail {α : Type} (message : String) : IO α :=
   throw <| IO.userError s!"leanquote-export: {message}"
+
+/-- Lake's Lean configuration loader needs native Lake support. Run this file as a
+Lake script, inside Lake's already initialized native runtime. Loading Lake's plugin
+into a plain Lean interpreter also has initialization problems on older toolchains.
+This bootstrap preserves the documented --run interface on all supported versions. -/
+def runWithNativeLake (args : List String) : IO UInt32 := do
+  let (_, some _, some lake) ← Lake.findInstall?
+    | fail "cannot locate Lean/Lake installation"
+  let script ← IO.FS.realPath exporterFile
+  let source ← IO.FS.readFile script
+  -- Keep the driver ephemeral, isolated between concurrent invocations, and in this
+  -- single distributable file. Plain `lean --run` cannot elaborate Lake's DSL on
+  -- older versions either, so only native Lake sees the appended package/script.
+  IO.FS.withTempDir fun dir => do
+    let driver := dir / "LeanQuoteExportDriver.lean"
+    IO.FS.writeFile driver (source ++
+      "\nopen Lake DSL\npackage leanquote_exporter\n" ++
+      "script leanquoteExport (args) do\n" ++
+      "  try\n    LeanQuoteExport.exportModule args\n    return (0 : UInt32)\n" ++
+      "  catch e =>\n    IO.eprintln e\n    return (1 : UInt32)\n")
+    let child ← IO.Process.spawn {
+      cmd := lake.lake.toString
+      args := #["-f", driver.toString, "script", "run", "leanquoteExport"] ++ args.toArray
+    }
+    return ← child.wait
 
 def loadWorkspace : IO Lake.Workspace := do
   let (elan?, some lean, some lake) ← Lake.findInstall?
@@ -208,8 +237,10 @@ def exportModule (args : List String) : IO Unit := do
     if seen.contains entry.name then fail s!"ambiguous source-facing name {entry.name}"
     seen := seen.insert entry.name
     let (doc, code) := splitDoc (slice lines entry.range)
-    out := out ++ s!"@@begin {entry.name}\n@@axioms {" ".intercalate (entry.axioms.toList.map toString)}\n"
-    out := out ++ payload "@@doc" doc ++ payload "@@code" code ++ "@@end\n"
+    out := out ++ s!"@@begin {entry.name}\n@@axioms"
+    if !entry.axioms.isEmpty then
+      out := out ++ " " ++ " ".intercalate (entry.axioms.toList.map toString)
+    out := out ++ "\n" ++ payload "@@doc" doc ++ payload "@@code" code ++ "@@end\n"
   -- TeX ignores trailing whitespace and the final newline; preserve line sequences.
   let srcLines := if lines.back? == some "" then lines.pop else lines
   for line in srcLines do
@@ -228,8 +259,7 @@ end LeanQuoteExport
 
 def main (args : List String) : IO UInt32 := do
   try
-    LeanQuoteExport.exportModule args
-    return 0
+    return ← LeanQuoteExport.runWithNativeLake args
   catch e =>
     IO.eprintln e
     return 1
