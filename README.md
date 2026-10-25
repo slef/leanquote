@@ -5,7 +5,7 @@ Lean actually compiled.
 
 ```latex
 \usepackage{leanquote}
-\leanfile{Abstract.lean}
+\leanquotefile{Abstract.lean}
 ...
 $P$ \emph{tiles} $\mathbb{Z}^3$ if some set $T$ of translations puts every point in exactly
 one translate $t + P$:
@@ -28,22 +28,26 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \usepackage{leanquote}
 \leanquotesetup{project=../lean/}           % root of your Lake project
 ...
-\leanfile{TranslationTiling/Abstract.lean}  % current file for the following quotes
+\leanquotefile{TranslationTiling/Abstract.lean} % default file for the following quotes
 \leanquote{Point, Prototile}
 \leanquote[doc]{Tiles}                      % with its doc comment
 \leanquote[proof=false]{main_theorem}       % statement only, proof shown as := ...
-\leanfilequote{Other/File.lean}{foo}        % one-off quote from another file
+\leanquote[file=Other/File.lean]{foo}       % one-off quote from another file
 \leanquoteimports                           % the import block of the current file
+\leanquoteimports[file=Other/File.lean]     % imports from another file
 ```
 
-`\leanfile[options]{file}` (alias `\leanquotefile`) sets the current file (options given there
-apply to its quotes; it works in the preamble too. If `\leanfile` is already defined when
-leanquote is loaded, as some blueprint macro files do, the package leaves it alone, warns, and you
-use `\leanquotefile`);
-`\leanquote[options]{names}` quotes from it; `\leanfilequote[options]{file}{names}` names the
-file explicitly. `\leanquoteimports` quotes the file's import block (the `module` and
+`\leanquotefile[options]{file}` sets the default file and options for following quotes; it works
+in the preamble too. `\leanquote[options]{names}` quotes from it. The `file=...` option selects
+a file for just that call, without changing the default, and works without a preceding
+`\leanquotefile`. A file must be supplied by one of these methods.
+`\leanquoteimports[options]` quotes the file's import block (the `module` and
 `[public] import` lines at its top); it can also be named `:imports` in a list, as in
-`\leanquote{:imports, Point}`.
+`\leanquote{:imports, Point}`. Both forms accept `file=...`.
+
+All public commands use the `\leanquote` prefix. The former `\leanfile` alias and
+`\leanfilequote{file}{names}` command were removed in v0.16; use `\leanquotefile{file}` and
+`\leanquote[file=file]{names}`, respectively.
 
 No step on the Lean side beyond your usual `lake build`:
 
@@ -91,16 +95,17 @@ on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the pape
 If `Abstract.lean` is edited after the export, LaTeX warns and falls back to reading the
 `.lean` file directly, so the paper always shows the current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found, and an export can be given explicitly as
-`\leanfilequote{Abstract.leanquote}{...}`. The exporter is a single Lean file
+`\leanquote[file=Abstract.leanquote]{...}`. The exporter is a single Lean file
 (`lean/LeanQuoteExport.lean`), run with `lake env lean --run`; nothing is added to your project.
 
 ## Options
 
-Set per quote (`\leanquote[doc]{...}`), per file (`\leanfile[...]{...}`), or for the whole document
+Set per quote (`\leanquote[doc]{...}`), per file (`\leanquotefile[...]{...}`), or for the whole document
 (`\leanquotesetup{...}`).
 
 | Option | Default | Meaning |
 |---|---|---|
+| `file=<path>` | current file | select the file to quote; per-call overrides leave the default unchanged |
 | `doc` | false | also show each declaration's doc comment |
 | `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
@@ -125,7 +130,7 @@ the colours are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 and the one-argument forms read naturally:
 
 ```
-\leanfile: Abstract.lean
+\leanquotefile: Abstract.lean
 \leanquote: main_theorem
 ```
 
@@ -158,6 +163,9 @@ and v4.35.0 (exporter).
 
 `doc/leanquote-doc.pdf` is the manual. `./make-ctan.sh` rebuilds it and writes the CTAN
 archive `leanquote.zip`.
+
+From a Git checkout, run the API regression tests with `python3 tests/test_api.py` (requires pdfLaTeX).
+Set `LEANQUOTE_TEX_ENGINE=lualatex` or `LEANQUOTE_TEX_ENGINE=xelatex` to test another engine.
 
 ## Related tools
 

@@ -9,7 +9,7 @@
 
 \lstdefinestyle{latexsrc}{language=[LaTeX]TeX, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, frame=single, rulecolor=\color{black!25}, xleftmargin=1em, xrightmargin=1em,
-  moretexcs={leanfile,leanquote,leanfilequote,leanquotesetup}}
+  moretexcs={leanquotefile,leanquote,leanquoteimports,leanquotesetup}}
 \lstnewenvironment{latexsrc}{\lstset{style=latexsrc}}{}
 \newcommand{\meta}[1]{\ensuremath{\langle}\textit{#1}\ensuremath{\rangle}}
 \newcommand{\cs}[1]{\texttt{\textbackslash #1}}
@@ -18,7 +18,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.15, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.16, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -27,7 +27,7 @@
 \begin{abstract}
 \noindent
 \textsf{leanquote} typesets declarations of a Lean~4 file in a \LaTeX{} document by name:
-\cs{leanfile}\verb|{Abstract.lean}| followed by \cs{leanquote}\verb|{main_theorem}| prints the
+\cs{leanquotefile}\verb|{Abstract.lean}| followed by \cs{leanquote}\verb|{main_theorem}| prints the
 declaration \texttt{main\_theorem} exactly as it appears in the Lean source, read at compile time.
 The prose stays in \LaTeX, and the code is never retyped or pasted.
 A misspelled name is an error, and the package warns when the Lean file has changed since Lean
@@ -54,39 +54,44 @@ proved through a bridge to the full development, but it works with any Lean~4 fi
 \usepackage{leanquote}
 \leanquotesetup{project=../lean/}            % root of the Lake project (optional)
 
-\leanfile{TranslationTiling/Abstract.lean}  % current file
+\leanquotefile{TranslationTiling/Abstract.lean} % default file
 A prototile is a finite list of points of $\mathbb{Z}^3$:
 \leanquote{Point, Prototile}
 \end{latexsrc}
 
 \noindent produces (with the file shipped in the package's \texttt{example} directory):
 
-\leanfile{TranslationTiling/Abstract.lean}
+\leanquotefile{TranslationTiling/Abstract.lean}
 A prototile is a finite list of points of $\mathbb{Z}^3$:
 \leanquote{Point, Prototile}
 
 \medskip
 \begin{description}
-\item[\cs{leanfile}\texttt{[\meta{options}]\{\meta{file}\}}]
-  sets the current file for the following \cs{leanquote} commands. Options given here apply to
-  all of them. The path is relative to \opt{project}, if set. The same command is also
-  available as \cs{leanquotefile}. Both can be used in the preamble. If \cs{leanfile} is
-  already defined when \textsf{leanquote} is loaded (some blueprint macro files define it),
-  the package leaves that definition alone, warns, and \cs{leanquotefile} is used instead;
-  macro files that define their own \cs{leanfile} should therefore be loaded first.
+\item[\cs{leanquotefile}\texttt{[\meta{options}]\{\meta{file}\}}]
+  sets the default file and options for following \cs{leanquote} commands.
+  The path is relative to \opt{project}, if set. It can be used in the preamble.
 \item[\cs{leanquote}\texttt{[\meta{options}]\{\meta{names}\}}]
   typesets the comma-separated declarations \meta{names} of the current file, together, in one
-  listing.
+  listing. The \opt{file=}\meta{path} option selects a file for this call without changing
+  the default; it works without a preceding \cs{leanquotefile}. A file must be supplied
+  by one of these methods.
 \item[\cs{leanquoteimports}\texttt{[\meta{options}]}]
   typesets the import block of the current file: the \texttt{module} and
   \texttt{[public|private|meta] import} lines at its top, after any comment such as a copyright
   header. The block can also be named \texttt{:imports} in a list of names, as in
-  \verb|\leanquote{:imports, Point}|.
-\item[\cs{leanfilequote}\texttt{[\meta{options}]\{\meta{file}\}\{\meta{names}\}}]
-  does the same for an explicitly given file.
+  \verb|\leanquote{:imports, Point}|. Both forms accept \opt{file=}\meta{path}.
 \item[\cs{leanquotesetup}\texttt{\{\meta{options}\}}]
   sets options for the rest of the document (or the current group).
 \end{description}
+
+\begin{latexsrc}
+\leanquote[doc,file=Other.lean]{Connected}
+\leanquoteimports[file=Other.lean]
+\end{latexsrc}
+
+\noindent All public commands use the \cs{leanquote} prefix. Since version~0.16,
+\cs{leanquotefile} replaces the former \cs{leanfile} alias, and
+\verb|\leanquote[file=Other.lean]{foo}| replaces \verb|\leanfilequote{Other.lean}{foo}|.
 
 \noindent For instance, \cs{leanquoteimports} gives:
 
@@ -119,10 +124,11 @@ With the \opt{doc} option, the doc comment is included:
 \section{Options}
 
 \begin{center}
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}llp{0.52\linewidth}@{}}
 \toprule
 Option & Default & Meaning \\
 \midrule
+\opt{file=}\meta{path} & current file & file to quote; per-call overrides leave the default unchanged \\
 \opt{doc} & false & also show each declaration's doc comment \\
 \opt{proof} & true & with \opt{proof=false}, theorems and lemmas stop at the \texttt{:=} of their proof, shown as \texttt{:= ...} \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
@@ -138,7 +144,7 @@ any other key & & passed to \textsf{listings} (e.g.\ \opt{basicstyle}) \\
 \end{center}
 
 Listings settings (any other key) given to \cs{leanquotesetup} apply to every later quote;
-those given to \cs{leanfile} or to a quote are added to them and win in case of conflict.
+those given to \cs{leanquotefile} or to a quote are added to them and win in case of conflict.
 
 \paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
@@ -255,7 +261,7 @@ From the root of the Lake project, run the exporter shipped with the package:
 path/to/leanquote/leanquote-export TranslationTiling.Abstract [More.Modules ...]
 \end{latexsrc}
 It builds each module and writes
-\texttt{.lake/build/leanquote/TranslationTiling/Abstract.leanquote}, inside the build directory.
+\path{.lake/build/leanquote/TranslationTiling/Abstract.leanquote}, inside the build directory.
 From then on, \cs{leanquote} finds this export automatically and uses Lean's declaration ranges;
 nothing changes in the document. The export also lists, for each declaration, the axioms it
 depends on (as \texttt{\#print axioms} reports them), which gives the \textsc{uses sorry} and
@@ -265,7 +271,7 @@ depends on (as \texttt{\#print axioms} reports them), which gives the \textsc{us
 The exporter is a single Lean file (\texttt{lean/LeanQuoteExport.lean}) run with
 \texttt{lake env lean --run}; nothing is added to the Lean project.
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
-explicitly with \cs{leanfilequote}\verb|{Abstract.leanquote}{...}|.
+explicitly with \verb|\leanquote[file=Abstract.leanquote]{...}|.
 
 \section{Colours, engines and symbols}
 
@@ -304,7 +310,7 @@ per listing.
 syntax reads naturally:
 \begin{latexsrc}
 ::use leanquote
-\leanfile: Abstract.lean
+\leanquotefile: Abstract.lean
 \leanquote: main_theorem
 \end{latexsrc}
 With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
@@ -365,6 +371,9 @@ The package and this documentation were produced with the help of Claude Opus~5.
 authors on presenting the formal statements of machine-checked results to human readers.
 
 \begin{description}
+\item[0.16 (2026-10-26)] All public commands use the \cs{leanquote} prefix.
+  \opt{file=} selects a file for a quote or its imports; \cs{leanfile} and
+  \cs{leanfilequote} removed.
 \item[0.15 (2026-10-26)] \cs{leanquotetrademark}.
 \item[0.14] Words after a dot (import paths, qualified names) are not coloured.
 \item[0.13] Common Mathlib types, tactics and \texttt{sorry} coloured; listings

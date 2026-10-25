@@ -1,10 +1,10 @@
 % leanquote.sty -- typeset Lean declarations by name, copied verbatim from Lean sources.
 %
 %   \leanquotesetup{project=../lean/}            % root of the Lake project (optional)
-%   \leanfile{Path/To/File.lean}                  % current file (alias: \leanquotefile)
+%   \leanquotefile{Path/To/File.lean}              % current file
 %   \leanquote[options]{Name1, Name2, ...}        % quote from the current file
 %   \leanquoteimports[options]                    % its import block (or the name :imports)
-%   \leanfilequote[options]{Path/To/File.lean}{Name1, Name2, ...}   % explicit file
+%   \leanquote[file=Path/To/File.lean,options]{Name1, Name2, ...}   % explicit file
 %
 % A declaration is found by its `def`/`theorem`/... line in column 0 and runs while lines are
 % indented (or start with `|`, `termination_by`, `decreasing_by`, `deriving`); its doc comment
@@ -17,7 +17,7 @@
 %
 % Copyright 2026 Stefan Langerman and Erik D. Demaine. MIT License.
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesExplPackage{leanquote}{2026-10-26}{0.15}{Typeset Lean declarations by name}
+\ProvidesExplPackage{leanquote}{2026-10-26}{0.16}{Typeset Lean declarations by name}
 \RequirePackage{listings}
 \RequirePackage{xcolor}
 \RequirePackage{graphicx}
@@ -27,10 +27,13 @@
 
 % ---------------------------------------------------------------- options
 \tl_new:N \l__leanquote_lst_tl
+\tl_new:N \l_leanquote_file_tl
 \tl_new:N \l_leanquote_verify_tl
 \bool_new:N \l_leanquote_check_bool
 \keys_define:nn { leanquote }
   {
+    file  .tl_set:N   = \l_leanquote_file_tl ,
+    file  .initial:n  = {} ,
     root  .tl_set:N   = \l_leanquote_root_tl ,
     root  .initial:n  = {} ,
     doc   .bool_set:N = \l_leanquote_doc_bool ,
@@ -63,7 +66,7 @@
         { , \l_keys_key_str \tl_if_blank:nF {#1} { = \exp_not:n {#1} } } ,
   }
 % Listings settings given to \leanquotesetup (unknown keys) are kept for the whole document
-% (or group); those given to a quote or \leanfile are added to them.
+% (or group); those given to a quote or \leanquotefile are added to them.
 \tl_new:N \l__leanquote_setuplst_tl
 \NewDocumentCommand \leanquotesetup { m }
   {
@@ -733,49 +736,31 @@
       }
     \bool_if:NT \l_leanquote_box_bool { \end{leanquotebox} }
   }
-% \leanfilequote[options]{file}{names}: quote declarations from an explicit file.
-\NewDocumentCommand \leanfilequote { O{} m m }
-  {
-    \group_begin:
-      \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
-      \keys_set:nn { leanquote } {#1}
-      \__leanquote_typeset:nn {#2} {#3}
-    \group_end:
-  }
-% \leanfile[options]{file}: set the current file (and options) for the following \leanquote.
-\tl_new:N \l_leanquote_file_tl
+% \leanquotefile[options]{file}: set the default file and options for later quotes.
 \tl_new:N \l__leanquote_fileopts_tl
 \msg_new:nnn { leanquote } { no-current-file }
-  { \token_to_str:N \leanquote\ used~before~any~\token_to_str:N \leanfile\
-    (or~\token_to_str:N \leanquotefile). }
-\msg_new:nnn { leanquote } { leanfile-taken }
-  { \token_to_str:N \leanfile\ is~already~defined~(for~example~by~blueprint~macros),~
-    so~leanquote~leaves~it~alone.~Use~\token_to_str:N \leanquotefile\ instead. }
+  { No~Lean~file~specified.~Set~a~default~with~\token_to_str:N \leanquotefile\
+    or~pass~file=...~in~the~quote~options. }
 \NewDocumentCommand \leanquotefile { O{} m }
   {
     \tl_set:Nn \l_leanquote_file_tl {#2}
     \tl_set:Nn \l__leanquote_fileopts_tl {#1}
   }
-% \leanfile is the short name of \leanquotefile, defined now if it is free. If a document's
-% macros (e.g. a blueprint's) define \leanfile before leanquote is loaded, they keep it.
-\cs_if_exist:NTF \leanfile
-  { \msg_warning:nn { leanquote } { leanfile-taken } }
-  { \NewCommandCopy \leanfile \leanquotefile }
-% \leanquoteimports[options]: quote the import block of the current file.
+% \leanquoteimports[options]: quote imports, optionally from an explicit file.
 \NewDocumentCommand \leanquoteimports { O{} } { \leanquote[#1]{:imports} }
-% \leanquote[options]{names}: quote declarations from the current file.
+% \leanquote[options]{names}: quote declarations from the default file or file=.
 \NewDocumentCommand \leanquote { O{} m }
   {
-    \tl_if_blank:VTF \l_leanquote_file_tl
-      { \msg_error:nn { leanquote } { no-current-file } }
-      {
-        \group_begin:
-          \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
-          \keys_set:nV { leanquote } \l__leanquote_fileopts_tl
-          \keys_set:nn { leanquote } {#1}
+    \group_begin:
+      \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
+      \keys_set:nV { leanquote } \l__leanquote_fileopts_tl
+      \keys_set:nn { leanquote } {#1}
+      \tl_if_blank:VTF \l_leanquote_file_tl
+        { \msg_error:nn { leanquote } { no-current-file } }
+        {
           \exp_args:NV \__leanquote_typeset:nn \l_leanquote_file_tl {#2}
-        \group_end:
-      }
+        }
+    \group_end:
   }
 
 % ---------------------------------------------------------------- box
