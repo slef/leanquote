@@ -130,11 +130,24 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. Put `\leanquotetrademark` (the notice "Lean and the Lean logo are trademarks of Lean FRO.") once in the paper, e.g. in the acknowledgments. |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
+| `basicstyle=<commands>` | from style | font commands for the code; overrides the selected listings style's font |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
 | `verify=<mode>` | `auto` | `auto`: mark a quote UNVERIFIED if its `.lean` is newer than its `.olean`; `true`: also if there is no `.olean`; `false`: no check (old name: `check`) |
 | `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
-| any other key | | passed to listings (e.g. `basicstyle=\footnotesize\ttfamily`); in `\leanquotesetup` it applies to all later quotes |
+| any other key | | passed to listings (e.g. `numbers=left`); in `\leanquotesetup` it applies to all later quotes |
+
+`basicstyle` is a listings option forwarded by leanquote. The default `leanquote` style
+uses `\ttfamily\small`. Include both the font family and size when overriding it:
+
+```latex
+\leanquotesetup{basicstyle=\ttfamily\footnotesize} % default for following quotes
+\leanquote[basicstyle=\ttfamily\small]{Tiles}     % override for one quote
+```
+
+For an explicit point size, use `\ttfamily\fontsize{9.5}{11.5}\selectfont`;
+the arguments specify font size and baseline spacing. The manual uses this setting
+to fit its long example lines.
 
 The default style colours keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
 `Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). A word right after a dot is not coloured, so `Set`

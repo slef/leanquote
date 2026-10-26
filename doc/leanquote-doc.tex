@@ -146,11 +146,12 @@ Option & Default & Meaning \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
 \opt{logo=}\meta{file} & none & image in the frame's top-right corner \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
+\opt{basicstyle} & from style & font commands for the code; overrides the selected style's font \\
 \opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
 \opt{verify=}\meta{mode} & \texttt{auto} & \texttt{auto}, \texttt{true} or \texttt{false}; see Section~\ref{sec:compiled} \\
 \opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
-any other key & & passed to \textsf{listings} (e.g.\ \opt{basicstyle}) \\
+any other key & & passed to \textsf{listings} (e.g.\ \opt{numbers=left}) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -159,6 +160,17 @@ Options from \cs{leanquotesetup} apply within the current group; per-call option
 them. Listings settings (any other key) are added to the setup settings.
 Quotes work in figure bodies, macro arguments, and footnotes, with no guarantee for moving
 arguments such as caption or heading text.
+
+\paragraph{Code font.} \opt{basicstyle} is a \textsf{listings} option forwarded by
+\textsf{leanquote}. The default \texttt{leanquote} style uses \verb|\ttfamily\small|.
+Include both the font family and size when overriding it:
+\begin{latexsrc}
+\leanquotesetup{basicstyle=\ttfamily\footnotesize}
+\leanquote[basicstyle=\ttfamily\small]{Tiles}
+\end{latexsrc}
+For an explicit point size, use \verb|\ttfamily\fontsize{9.5}{11.5}\selectfont|;
+the arguments specify font size and baseline spacing. This manual uses that setting
+to fit its long example lines.
 
 \paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
