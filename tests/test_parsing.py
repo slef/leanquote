@@ -213,6 +213,16 @@ class ParsingTests(unittest.TestCase):
         snippets, _ = self.compile('', r"\leanquote[file=Saved.leanquote,proof=false]{equation}", export=exported)
         self.assertEqual(snippets, [expected])
 
+    def test_match_type_alternatives_are_not_equation_proofs(self):
+        declaration = ('theorem matchType : match true with\n'
+                       '  | true => True\n  | false => True := by trivial\n')
+        expected = declaration.rsplit(' := by', 1)[0] + ' := ...'
+        snippets, _ = self.compile(declaration, r"\leanquote[proof=false]{matchType}", olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, [expected])
+        exported = '@@leanquote-export 1\n@@begin matchType\n@@axioms\n' + declaration + '@@end\n'
+        snippets, _ = self.compile('', r"\leanquote[file=Saved.leanquote,proof=false]{matchType}", export=exported)
+        self.assertEqual(snippets, [expected])
+
     def check_lean(self, work, filename, *, olean=False):
         command = ["lean"]
         if olean:

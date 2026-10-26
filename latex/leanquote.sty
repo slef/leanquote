@@ -438,6 +438,7 @@
 \int_new:N \l__leanquote_prev_int
 \bool_new:N \l__leanquote_intheorem_bool
 \bool_new:N \l__leanquote_cutdone_bool
+\bool_new:N \l__leanquote_match_type_bool
 \str_new:N \l__leanquote_line_str
 \cs_generate_variant:Nn \str_replace_all:Nnn { Nne }
 \cs_new_protected:Npn \__leanquote_proof_brackets:
@@ -458,7 +459,9 @@
     \int_zero:N \l__leanquote_cut_int
     \int_zero:N \l__leanquote_prev_int
     % Equation-style theorem bodies start with a top-level pattern alternative.
-    \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn { \l__leanquote_depth_int } = {0} }
+      { ! \l__leanquote_match_type_bool }
       {
         \regex_extract_once:nVNTF { \A \s* (\|) } #1 \l__leanquote_literal_seq
           { \int_set:Nn \l__leanquote_cut_int { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } } }
@@ -476,6 +479,19 @@
             { 41 }    { \int_decr:N \l__leanquote_depth_int }
             { 93 }    { \int_decr:N \l__leanquote_depth_int }
             { 125 }   { \int_decr:N \l__leanquote_depth_int }
+            { 109 }
+              {
+                % Alternatives in an unparenthesized match result type belong
+                % to the statement; its proof still starts at :=.
+                \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+                  {
+                    \tl_set:Ne \l_tmpa_tl
+                      { \str_range:Nnn #1 { \int_max:nn {1} { \l__leanquote_pos_int - 1 } }
+                          { \l__leanquote_pos_int + 5 } }
+                    \regex_match:nVT { (?:\A|[^A-Za-z_0-9']) match (?:\s|\Z) } \l_tmpa_tl
+                      { \bool_set_true:N \l__leanquote_match_type_bool }
+                  }
+              }
             { 61 }
               {
                 \bool_lazy_and:nnT
@@ -497,6 +513,7 @@
       {
         \bool_set_false:N \l__leanquote_intheorem_bool
         \bool_set_false:N \l__leanquote_cutdone_bool
+        \bool_set_false:N \l__leanquote_match_type_bool
         \int_zero:N \l__leanquote_depth_int
         \__leanquote_lex_reset:
         \bool_set_true:N \l__leanquote_proof_scan_bool
