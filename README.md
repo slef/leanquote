@@ -149,6 +149,24 @@ For an explicit point size, use `\ttfamily\fontsize{9.5}{11.5}\selectfont`;
 the arguments specify font size and baseline spacing. The manual uses this setting
 to fit its long example lines.
 
+With `box=true` (the default), set the background with `colback` and the border with
+`colframe` through [tcolorbox](https://ctan.org/pkg/tcolorbox):
+
+```latex
+\tcbset{extras={colback=blue!3,colframe=blue!50}}
+```
+
+The defaults are `colback=black!3` and `colframe=black!45`. The `extras` wrapper
+applies the colors after leanquote's presets, retaining its logo and verification badges.
+These settings affect all tcolorboxes in the current TeX group. To change just one quote:
+
+```latex
+{
+  \tcbset{extras={colback=green!3,colframe=green!50}}
+  \leanquote{Tiles}
+}
+```
+
 The default style colours keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
 `Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). A word right after a dot is not coloured, so `Set`
 is green in `Set.univ` but import paths like `Mathlib.MeasureTheory.Measure.Lebesgue.Basic` stay

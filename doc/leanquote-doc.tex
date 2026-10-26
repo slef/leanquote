@@ -172,6 +172,23 @@ For an explicit point size, use \verb|\ttfamily\fontsize{9.5}{11.5}\selectfont|;
 the arguments specify font size and baseline spacing. This manual uses that setting
 to fit its long example lines.
 
+\paragraph{Box colours.} With \opt{box=true} (the default), set the background with
+\opt{colback} and the border with \opt{colframe} through
+\href{https://ctan.org/pkg/tcolorbox}{\textsf{tcolorbox}}:
+\begin{latexsrc}
+\tcbset{extras={colback=blue!3,colframe=blue!50}}
+\end{latexsrc}
+The defaults are \opt{colback=black!3} and \opt{colframe=black!45}.
+The \opt{extras} wrapper applies the colours after \textsf{leanquote}'s presets,
+retaining its logo and verification badges. These settings affect all tcolorboxes
+in the current \TeX\ group. To change just one quote:
+\begin{latexsrc}
+{
+  \tcbset{extras={colback=green!3,colframe=green!50}}
+  \leanquote{Tiles}
+}
+\end{latexsrc}
+
 \paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
 The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
