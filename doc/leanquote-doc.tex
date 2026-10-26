@@ -144,6 +144,8 @@ Option & Default & Meaning \\
 \opt{imports} & false & prepend the import block once; an empty name list quotes only imports \\
 \opt{proof} & true & with \opt{proof=false}, theorems and lemmas stop at the \texttt{:=} of their proof, shown as \texttt{:= ...} \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
+\opt{boxback} & \texttt{black!3} & background color of the box \\
+\opt{boxframe} & \texttt{black!45} & border color of the box and logo outline \\
 \opt{logo=}\meta{file} & none & image in the frame's top-right corner \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
 \opt{basicstyle} & from style & font commands for the code; overrides the selected style's font \\
@@ -173,21 +175,18 @@ the arguments specify font size and baseline spacing. This manual uses that sett
 to fit its long example lines.
 
 \paragraph{Box colors.} With \opt{box=true} (the default), set the background with
-\opt{colback} and the border with \opt{colframe} through
-\href{https://ctan.org/pkg/tcolorbox}{\textsf{tcolorbox}}:
+\opt{boxback} and the border with \opt{boxframe}. Both accept \textsf{xcolor} names
+and expressions such as \opt{blue!3}:
 \begin{latexsrc}
-\tcbset{extras={colback=blue!3,colframe=blue!50}}
+\leanquotesetup{boxback=blue!3,boxframe=blue!50}
+\leanquote[boxback=green!3,boxframe=green!50]{Tiles}
 \end{latexsrc}
-The defaults are \opt{colback=black!3} and \opt{colframe=black!45}.
-The \opt{extras} wrapper applies the colors after \textsf{leanquote}'s presets,
-retaining its logo and verification badges. These settings affect all tcolorboxes
-in the current \TeX\ group. To change just one quote:
-\begin{latexsrc}
-{
-  \tcbset{extras={colback=green!3,colframe=green!50}}
-  \leanquote{Tiles}
-}
-\end{latexsrc}
+Setup sets defaults for later quotes in the current \TeX\ group; per-call settings
+affect only that quote, so no surrounding group is needed. Other tcolorboxes keep
+their own settings. The green per-call override above gives:
+\leanquote[boxback=green!3,boxframe=green!50]{Tiles}
+\noindent The frame color also applies to the logo outline. Verification badges
+retain their red background.
 
 \paragraph{The logo.} With \opt{logo=}\meta{file}, the image appears in the top-right corner of
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
@@ -432,7 +431,8 @@ authors on presenting the formal statements of machine-checked results to human 
 \setlength{\parsep}{0pt}
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
-  alone. Removed \cs{leanquotefile}, \cs{leanquoteimports}, and the \texttt{:imports} selector.
+  alone. Direct \opt{boxback} and \opt{boxframe} color options.
+  Removed \cs{leanquotefile}, \cs{leanquoteimports}, and the \texttt{:imports} selector.
 \item[0.17 (2026-10-26)] Lexical source/import/proof scanning and namespace-aware names;
   v2 exports with exact ranges, safe payloads and build provenance; stricter verification
   and listings fixes. Regression tests and CI; source-only manual in Git, built PDFs

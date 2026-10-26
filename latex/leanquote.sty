@@ -54,6 +54,10 @@
     box   .bool_set:N = \l_leanquote_box_bool ,
     box   .default:n  = true ,
     box   .initial:n  = true ,
+    boxback .tl_set:N  = \l_leanquote_boxback_tl ,
+    boxback .initial:n = black!3 ,
+    boxframe .tl_set:N  = \l_leanquote_boxframe_tl ,
+    boxframe .initial:n = black!45 ,
     logo  .tl_set:N   = \l_leanquote_logo_tl ,
     logo  .initial:n  = {} ,
     verify .choices:nn = { true , false , auto }
@@ -1226,12 +1230,13 @@
   { \textcolor{white}{ \textsf{ \bfseries \scriptsize #1 } } }
 \cs_new:Npn \leanquotebadgetext #1
   { \textcolor{red!75!black}{ \textsf{ \bfseries \scriptsize #1 } } }
-\newtcolorbox{leanquotebox}{breakable, enhanced, colback=black!3, colframe=black!45,
+\newtcolorbox{leanquotebox}{breakable, enhanced,
+  colback=\l_leanquote_boxback_tl, colframe=\l_leanquote_boxframe_tl,
   boxrule=0.5pt, arc=2pt, left=6pt, right=6pt, top=3pt, bottom=3pt,
   overlay~unbroken~and~first={
     \file_if_exist:VTF \l_leanquote_logo_tl
       {
-        \node[anchor=north~east, inner~sep=3pt, draw=black!45, fill=white,
+        \node[anchor=north~east, inner~sep=3pt, draw=\l_leanquote_boxframe_tl, fill=white,
           line~width=0.5pt, rounded~corners=2pt] (leanquotelogo) at (frame.north~east)
           { \includegraphics[height=1.6ex]{\l_leanquote_logo_tl} \leanquotelogomark } ;
         \tl_if_empty:NF \l__leanquote_mark_tl

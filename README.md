@@ -128,6 +128,8 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `imports` | false | prepend the import block once; an empty name list quotes only imports |
 | `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
+| `boxback=<color>` | `black!3` | background color of the box |
+| `boxframe=<color>` | `black!45` | border color of the box and logo outline |
 | `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. Put `\leanquotetrademark` (the notice "Lean and the Lean logo are trademarks of Lean FRO.") once in the paper, e.g. in the acknowledgments. |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
 | `basicstyle=<commands>` | from style | font commands for the code; overrides the selected listings style's font |
@@ -149,23 +151,18 @@ For an explicit point size, use `\ttfamily\fontsize{9.5}{11.5}\selectfont`;
 the arguments specify font size and baseline spacing. The manual uses this setting
 to fit its long example lines.
 
-With `box=true` (the default), set the background with `colback` and the border with
-`colframe` through [tcolorbox](https://ctan.org/pkg/tcolorbox):
+With `box=true` (the default), set the background with `boxback` and the border with
+`boxframe`. Both accept xcolor names and expressions such as `blue!3`:
 
 ```latex
-\tcbset{extras={colback=blue!3,colframe=blue!50}}
+\leanquotesetup{boxback=blue!3,boxframe=blue!50}
+\leanquote[boxback=green!3,boxframe=green!50]{Tiles}
 ```
 
-The defaults are `colback=black!3` and `colframe=black!45`. The `extras` wrapper
-applies the colors after leanquote's presets, retaining its logo and verification badges.
-These settings affect all tcolorboxes in the current TeX group. To change just one quote:
-
-```latex
-{
-  \tcbset{extras={colback=green!3,colframe=green!50}}
-  \leanquote{Tiles}
-}
-```
+Setup sets the defaults for later quotes in the current TeX group. Per-call settings
+affect only that quote, so no surrounding group is needed. These options apply to
+leanquote boxes; other tcolorboxes keep their own settings. `boxframe` also sets the
+logo outline color; verification badges retain their red background.
 
 The default style colors keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
 `Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). A word right after a dot is not colored, so `Set`
