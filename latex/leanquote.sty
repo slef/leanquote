@@ -1854,14 +1854,17 @@
             \lst@token { { \ensuremath {#2} } } \lst@length = 1 \scan_stop:
             \lst@XPrintToken
           }
-        \char_gset_active_eq:nc { `#1 } { __leanquote_u_ \int_eval:n { `#1 } }
         \clist_gput_right:Ne \g__leanquote_unicode_clist { \int_eval:n { `#1 } }
       }
     \use:c { leanquote@table }
     \cs_new_protected:Npn \__leanquote_unicode_activate:
       {
         \lst@ifleanquoteunicode
-          \clist_map_inline:Nn \g__leanquote_unicode_clist { \char_set_catcode_active:n {##1} }
+          \clist_map_inline:Nn \g__leanquote_unicode_clist
+            {
+              \char_set_active_eq:nc {##1} { __leanquote_u_##1 }
+              \char_set_catcode_active:n {##1}
+            }
         \fi
       }
     \lst@AddToHook { SelectCharTable } { \__leanquote_unicode_activate: }

@@ -163,6 +163,18 @@ def after : Nat := 1
         for position in math_positions:
             self.assertEqual(tokens[position - 1], "Nat", tokens)
 
+    @unittest.skipIf(ENGINE == "pdflatex", "Unicode-engine active character definitions")
+    def test_unicode_body_definition_survives_package_and_listing(self):
+        _, output = self.compile_tex(
+            {"A.lean": "def αvalue : Nat := 1\n"},
+            r"Before: α. \leanquote[file=A.lean,verify=false]{αvalue} After: α.",
+            before_package=r"""
+\usepackage{newunicodechar}
+\newunicodechar{α}{\typeout{LQ-BODY-ALPHA}\ensuremath{\alpha}}
+""",
+        )
+        self.assertEqual(output.count("LQ-BODY-ALPHA"), 2, output)
+
     @unittest.skipIf(ENGINE == "pdflatex", "Unicode-engine character table")
     def test_unicode_replacements_are_scoped_to_lean_style(self):
         _, output = self.compile_tex(

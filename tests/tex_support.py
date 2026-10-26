@@ -13,7 +13,7 @@ ENGINE = os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")
 
 
 class TexTestCase(unittest.TestCase):
-    def compile_tex(self, files, body, *, preamble="", fontenc=True, success=True):
+    def compile_tex(self, files, body, *, preamble="", before_package="", fontenc=True, success=True):
         with tempfile.TemporaryDirectory(prefix="leanquote-regression-") as directory:
             work = Path(directory)
             shutil.copyfile(ROOT / "latex" / "leanquote.sty", work / "leanquote.sty")
@@ -24,7 +24,7 @@ class TexTestCase(unittest.TestCase):
             source = "\n".join([
                 r"\documentclass{article}",
                 r"\usepackage[T1]{fontenc}" if fontenc else "",
-                r"\usepackage{leanquote}",
+                before_package, r"\usepackage{leanquote}",
                 r"\leanquotesetup{box=false}",
                 r"\renewcommand{\leanquotebadgetext}[1]{\typeout{LEANQUOTE-BADGE:#1}}",
                 preamble, r"\begin{document}", body, r"\end{document}", "",
