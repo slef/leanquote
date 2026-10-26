@@ -175,15 +175,13 @@ the arguments specify font size and baseline spacing. This manual uses that sett
 to fit its long example lines.
 
 \paragraph{Box colors.} With \opt{box=true} (the default), set the background with
-\opt{boxback} and the border with \opt{boxframe}. Both accept \textsf{xcolor} names
-and expressions such as \opt{blue!3}:
+\opt{boxback} and the border with \opt{boxframe}
+(without affecting other tcolorboxes).
+Both accept \textsf{xcolor} names and expressions such as \opt{blue!3}:
 \begin{latexsrc}
 \leanquotesetup{boxback=blue!3,boxframe=blue!50}
 \leanquote[boxback=green!3,boxframe=green!50]{Tiles}
 \end{latexsrc}
-Setup sets defaults for later quotes in the current \TeX\ group; per-call settings
-affect only that quote, so no surrounding group is needed. Other tcolorboxes keep
-their own settings. The green per-call override above gives:
 \leanquote[boxback=green!3,boxframe=green!50]{Tiles}
 \noindent The frame color also applies to the logo outline. Verification badges
 retain their red background.
@@ -214,6 +212,11 @@ The declaration continues while lines are blank, indented, or start with \texttt
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
 \texttt{match} alternatives and \texttt{inductive} constructors.
+
+The package writes one temporary file
+\meta{jobname}\texttt{-leanquote-}\meta{n}\texttt{.lean} per listing.
+These files are not deleted automatically. You might add \verb|*-leanquote-*.lean|
+to \texttt{.gitignore}.
 
 \section{What has Lean checked?}\label{sec:compiled}
 
@@ -327,7 +330,7 @@ directories. Version~2 records the build fingerprint and prefixes every code lin
 format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
 but are marked \textsc{unverified}; re-run the exporter to upgrade them.
 
-\section{Colors, engines and symbols}
+\section{Lean listing format}
 
 The \texttt{leanquote} style colors four classes of words: keywords and commands
 (\texttt{def}, \texttt{theorem}, \texttt{fun}, \texttt{by}, \dots) in blue; sorts and the
@@ -353,10 +356,6 @@ pdf\LaTeX{} through listings' \opt{literate} mechanism, and under Lua\LaTeX{} an
 making these characters active inside listings. Other symbols can be added with \opt{literate}
 in a style of your own (pdf\LaTeX), or by choosing a monospace font that contains them
 (Lua\LaTeX, Xe\LaTeX).
-The package loads \textsf{listings}, \textsf{xcolor}, \textsf{graphicx}, \textsf{amssymb},
-and \textsf{tcolorbox} with its \texttt{skins} and \texttt{breakable}
-libraries. It writes one temporary file \meta{jobname}\texttt{-leanquote-}\meta{n}\texttt{.lean}
-per listing.
 
 \section{Texlish}
 
@@ -414,12 +413,13 @@ compiled module.
   \textsf{listings} definition of Lean with a Unicode table, which inspired ours.
 \end{itemize}
 The idea of including Lean snippets in papers to keep them in sync with the code was raised on
-the Lean Zulip by Eric Wieser in 2022 (thread ``MathemaTeX'').
+the Lean Zulip by Eric Wieser in 2022
+(thread ``\href{https://leanprover-community.github.io/archive/stream/113488-general/topic/MathemaTeX.html}{MathemaTeX}'').
 
 \section{Acknowledgments}
 
 The package and this documentation were produced with the help of Claude Opus~5.5
-(Anthropic), working under the authors' direction.
+(Anthropic) and GPT~6.1 Sol (OpenAI), working under the authors' direction.
 
 \section{License and history}
 

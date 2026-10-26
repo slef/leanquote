@@ -262,8 +262,8 @@ or checks quoted code against the compiled module. Related work (details in the 
 
 ## Acknowledgments
 
-The package and its documentation were produced with the help of Claude Opus 5.5 (Anthropic),
-working under the authors' direction.
+The package and its documentation were produced with the help of Claude Opus 5.5 (Anthropic)
+and GPT 6.1 Sol (OpenAI), working under the authors' direction.
 
 ## License
 
