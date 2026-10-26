@@ -108,6 +108,8 @@ automatically and uses Lean's exact declaration ranges, and the axioms each decl
 on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the paper.
 The exporter asks Lake for the actual source and compiled-file paths, including custom source
 directories. It records the build fingerprint as well as the source text.
+The v2 format rejects control characters in metadata (including names and paths),
+whitespace inside axiom names, and bare carriage returns in source. LF and CRLF are supported.
 If `Abstract.lean` is edited after the export, LaTeX warns and reads the `.lean` file
 directly, so quotes of a `.lean` file show its current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found. An export can be given explicitly as

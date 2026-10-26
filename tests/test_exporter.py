@@ -292,6 +292,53 @@ srcDir = "lib-src"
         self.assertIn("@@code \n@@code @@end\n", self.text)
         self.assertNotIn("forged", self.entries)
 
+    def test_rejects_metadata_record_injection(self):
+        old = self.src.read_text(encoding="utf-8")
+        previous = self.out.read_bytes()
+        self.src.write_text("""def «header
+@@axioms
+@@end
+@@begin phantom
+@@axioms
+@@code def phantom : Nat := 99
+@@end
+@@begin tail» : Nat := 1
+""", encoding="utf-8")
+        try:
+            run(self.work, "lake", "-H", "build", "Demo")  # valid Lean, no phantom
+            output = self.direct("package-src/lib-src/Demo.lean", "unsafe.leanquote", success=False)
+            self.assertIn("unsupported control character in declaration name", output)
+            self.assertFalse((self.work / "unsafe.leanquote").exists())
+            self.assertEqual(self.out.read_bytes(), previous)
+        finally:
+            self.src.write_text(old, encoding="utf-8")
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
+
+    def test_rejects_unrepresentable_axiom_name(self):
+        old = self.src.read_text(encoding="utf-8")
+        self.src.write_text('axiom «two words» : True\ntheorem value : True := «two words»\n',
+                            encoding="utf-8")
+        try:
+            run(self.work, "lake", "-H", "build", "Demo")
+            output = self.direct("package-src/lib-src/Demo.lean", "unsafe.leanquote", success=False)
+            self.assertIn("unsupported whitespace in axiom name", output)
+            self.assertFalse((self.work / "unsafe.leanquote").exists())
+        finally:
+            self.src.write_text(old, encoding="utf-8")
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
+
+    def test_rejects_bare_carriage_return_payload(self):
+        old = self.src.read_bytes()
+        self.src.write_bytes(b'def text : String := "start\r@@end\rfinish"\n')
+        try:
+            run(self.work, "lake", "-H", "build", "Demo")
+            output = self.direct("package-src/lib-src/Demo.lean", "unsafe.leanquote", success=False)
+            self.assertIn("unsupported bare carriage return", output)
+            self.assertFalse((self.work / "unsafe.leanquote").exists())
+        finally:
+            self.src.write_bytes(old)
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
+
     def test_direct_cli_rejects_shadow_source(self):
         output = self.direct("Demo.lean", "rejected.leanquote", success=False)
         self.assertIn("source mismatch", output)

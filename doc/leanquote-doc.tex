@@ -384,6 +384,8 @@ The exporter resolves source and compiled paths through Lake, including custom s
 directories. Version~2 records the build fingerprint and prefixes every code line, so literal
 format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
 but are marked \textsc{unverified}; re-run the exporter to upgrade them.
+The v2 format rejects control characters in metadata (including names and paths),
+whitespace inside axiom names, and bare carriage returns in source. LF and CRLF are supported.
 
 \section{Publishing: arXiv, CI, Overleaf}\label{sec:publishing}
 

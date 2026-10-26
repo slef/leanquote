@@ -175,6 +175,14 @@ def payload (tag text : String) : String :=
   if text.isEmpty then "" else
     String.join ((text.splitOn "\n").map fun line => s!"{tag} {line}\n")
 
+/-- V2 metadata is line-oriented; axiom names additionally use whitespace as a
+separator. Reject unrepresentable values before replacing an existing export. -/
+def checkMetadata (label value : String) (word := false) : IO Unit := do
+  if value.toList.any (fun c => c.toNat < 32 || c.toNat == 127) then
+    fail s!"unsupported control character in {label}: {reprStr value}"
+  if word && value.toList.any Char.isWhitespace then
+    fail s!"unsupported whitespace in {label}: {reprStr value}"
+
 def exportModule (args : List String) : IO Unit := do
   let (modStr, requested) ← match args with
     | [mod] => pure (mod, none)
@@ -185,6 +193,8 @@ def exportModule (args : List String) : IO Unit := do
   let ws ← loadWorkspace
   let target ← resolveModule ws mod
   let srcPath ← relativePath root target.leanFile
+  checkMetadata "module name" mod.toString
+  checkMetadata "source path" srcPath
   if let some (src, _) := requested then
     unless ← sameFile src target.leanFile do
       fail s!"source mismatch: Lake resolves {mod} to {srcPath}, not {src}"
@@ -203,6 +213,7 @@ def exportModule (args : List String) : IO Unit := do
   unless ← sameFile imported target.oleanFile do
     fail s!"compiled module mismatch: Lean imports {imported}, Lake builds {target.oleanFile}"
   let oleanPath ← relativePath root imported
+  checkMetadata "compiled artifact path" oleanPath
   let traceText ← IO.FS.readFile target.traceFile
   let trace ← IO.ofExcept (Json.parse traceText)
   let depHash ← IO.ofExcept (trace.getObjValAs? String "depHash")
@@ -212,6 +223,8 @@ def exportModule (args : List String) : IO Unit := do
   -- CRLF and LF describe the same Lean line/column positions. Emit LF payloads on
   -- every platform, while retaining the original bytes for the race checks below.
   let text := source.replace "\r\n" "\n"
+  -- TeX also treats bare CR as a line ending, which could bypass LF framing.
+  if text.contains '\r' then fail "unsupported bare carriage return in source; use LF or CRLF"
   let lines := (text.splitOn "\n").toArray
   let env ← importModules #[{module := mod}] {}
   let some idx := env.getModuleIdx? mod | fail s!"module {mod} not imported"
@@ -237,6 +250,9 @@ def exportModule (args : List String) : IO Unit := do
   let mut out := s!"@@leanquote-export 2\n@@module {mod}\n@@source {srcPath}\n@@olean {oleanPath}\n@@trace {depHash}\n"
   let mut seen : Std.HashSet Name := {}
   for entry in entries.qsort before do
+    checkMetadata "declaration name" entry.name.toString
+    for axiomName in entry.axioms do
+      checkMetadata "axiom name" axiomName.toString (word := true)
     if seen.contains entry.name then fail s!"ambiguous source-facing name {entry.name}"
     seen := seen.insert entry.name
     let (doc, code) := splitDoc (slice lines entry.range)
