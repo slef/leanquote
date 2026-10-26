@@ -35,6 +35,56 @@ class HighlightingTests(TexTestCase):
             for component, expected in zip(actual, color):
                 self.assertAlmostEqual(component, expected, delta=0.0001)
 
+    def test_tex_escapes_preserve_following_code_colors(self):
+        for annotation, options in [
+            (r"(*@\textbf{note}@*)", r"escapeinside={(*@}{@*)}"),
+            (r"!\textbf{note}!", "escapechar=!"),
+            (r"$x+y$", "mathescape=true"),
+            (r"(*@\textbf{first}@*) then (*@\emph{second}@*)", r"escapeinside={(*@}{@*)}"),
+        ]:
+            with self.subTest(options=options, annotation=annotation):
+                code = "theorem sample : True /- " + annotation + " -/ := by trivial\n"
+                rendered = self.render(code, options=options)
+                self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+                self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
+                self.assert_paint(rendered, 'True', 1, (38/255, 128/255, 89/255))
+                quoted = self.render(code, body=r"\leanquote[file=Fixture.lean,verify=false," +
+                                     options + r"]{sample}")
+                self.assert_paint(quoted, 'by', 1, (41/255, 110/255, 166/255))
+                self.assert_paint(quoted, 'trivial', 1, (136/255, 84/255, 150/255))
+
+    def test_multiline_tex_escape_preserves_next_line_colors(self):
+        code = 'theorem sample : True /- (*@\textbf{\nnote}@*) -/ := by trivial\n'
+        rendered = self.render(code, options=r"escapeinside={(*@}{@*)}")
+        self.assert_paint(rendered, 'by', 2, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'trivial', 2, (136/255, 84/255, 150/255))
+
+    def test_tex_escapes_in_environments_and_inline_listings(self):
+        rendered = self.render("", body=r"""
+\begin{lstlisting}[style=leanquote,escapeinside={(*@}{@*)}]
+theorem sample : True /- (*@\textbf{note}@*) -/ := by trivial
+\end{lstlisting}
+""")
+        self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
+        rendered = self.render("", body=r'\lstinline[style=leanquote,mathescape]!True /- $x+y$ -/ := by trivial!')
+        self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
+
+    def test_multiline_escaped_environment_keeps_colors_and_scope(self):
+        body = r"""
+\begin{lstlisting}[style=leanquote,escapeinside={(*@}{@*)}]
+theorem αsample : True /- (*@\textbf{
+note}@*) -/ := by trivial
+\end{lstlisting}
+\lstinputlisting[style=leanquote]{Fixture.lean}
+"""
+        rendered = self.render('def after : Nat := 1\n', body=body)
+        self.assert_paint(rendered, 'by', 2, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'trivial', 2, (136/255, 84/255, 150/255))
+        self.assert_paint(rendered, 'def', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'Nat', 1, (38/255, 128/255, 89/255))
+
     def test_raw_strings_and_hash_counts_keep_comment_text_literal(self):
         rendered = self.render('''def raw : String := r##"first "# sorry Nat /- --
 last"##

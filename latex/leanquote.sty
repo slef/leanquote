@@ -1648,6 +1648,81 @@
     \int_zero:N \l__leanquote_render_word_int
     \bool_set_false:N \l__leanquote_render_exotic_bool
   }
+% Escape contents are typeset by TeX and consume no listings columns. Keep
+% their source extent while building the map rather than measuring TeX output.
+\str_new:N \l__leanquote_escape_start_str
+\str_new:N \l__leanquote_escape_end_str
+\str_new:N \l__leanquote_escape_active_str
+\bool_new:N \l__leanquote_escape_skip_bool
+\bool_new:N \l__leanquote_escape_tex_bool
+\cs_new_protected:Npn \__leanquote_render_escapes:
+  {
+    \str_clear:N \l__leanquote_escape_start_str
+    \str_clear:N \l__leanquote_escape_end_str
+    \str_clear:N \l__leanquote_escape_active_str
+    \cs_set_eq:NN \__leanquote_saved_escape: \lst@Escape
+    \cs_set_protected:Npn \lst@Escape ##1##2##3##4
+      {
+        % DefOther uses listings' own normalization of escaped delimiters.
+        \lst@DefOther \l_tmpa_tl {##1}
+        \str_set:NV \l__leanquote_escape_start_str \l_tmpa_tl
+        \lst@DefOther \l_tmpa_tl {##2}
+        \str_set:NV \l__leanquote_escape_end_str \l_tmpa_tl
+      }
+    \lst@DefEsc
+    \cs_set_eq:NN \lst@Escape \__leanquote_saved_escape:
+    \bool_set:Nn \l__leanquote_escape_tex_bool
+      { ! \str_if_empty_p:N \l__leanquote_escape_start_str }
+    \lst@ifmathescape \bool_set_true:N \l__leanquote_escape_tex_bool \fi
+  }
+\cs_new_protected:Npn \__leanquote_render_skip:n #1
+  {
+    \bool_set_true:N \l__leanquote_escape_skip_bool
+    \int_add:Nn \l__leanquote_render_index_int {#1 - 1}
+  }
+\cs_new_protected:Npn \__leanquote_render_escape:
+  {
+    \bool_set_false:N \l__leanquote_escape_skip_bool
+    \str_if_empty:NTF \l__leanquote_escape_active_str
+      {
+        \str_if_empty:NF \l__leanquote_escape_start_str
+          {
+            \str_if_eq:eeT
+              { \str_range:Nnn \l__leanquote_render_line_str
+                  { \l__leanquote_render_index_int }
+                  { \l__leanquote_render_index_int + \str_count:N \l__leanquote_escape_start_str - 1 } }
+              { \l__leanquote_escape_start_str }
+              {
+                \str_set_eq:NN \l__leanquote_escape_active_str \l__leanquote_escape_end_str
+                \__leanquote_render_skip:n { \str_count:N \l__leanquote_escape_start_str }
+              }
+          }
+        \bool_if:NF \l__leanquote_escape_skip_bool
+          {
+            \lst@ifmathescape
+              \str_if_eq:eeT
+                { \str_item:Nn \l__leanquote_render_line_str { \l__leanquote_render_index_int } } {$}
+                { \str_set:Nn \l__leanquote_escape_active_str {$}
+                  \__leanquote_render_skip:n {1} }
+            \fi
+          }
+      }
+      {
+        \str_if_eq:eeTF
+          { \str_range:Nnn \l__leanquote_render_line_str
+              { \l__leanquote_render_index_int }
+              { \l__leanquote_render_index_int + \str_count:N \l__leanquote_escape_active_str - 1 } }
+          { \l__leanquote_escape_active_str }
+          {
+            \__leanquote_render_skip:n { \str_count:N \l__leanquote_escape_active_str }
+            \str_clear:N \l__leanquote_escape_active_str
+          }
+          {
+            \__leanquote_render_decode:
+            \__leanquote_render_skip:n {1}
+          }
+      }
+  }
 \cs_new_protected:Npn \__leanquote_render_prepare:n #1
   {
     \str_set:Ne \l__leanquote_render_line_str { \tl_to_str:n {#1} }
@@ -1658,35 +1733,40 @@
     \int_set:Nn \l__leanquote_render_index_int {1}
     \int_while_do:nNnn { \l__leanquote_render_index_int } < { \str_count:N \l__leanquote_render_line_str + 1 }
       {
-        \int_set_eq:NN \l__leanquote_render_start_int \l__leanquote_render_index_int
-        \__leanquote_render_decode:
-        \sys_if_engine_pdftex:F
+        \__leanquote_render_escape:
+        \bool_if:NTF \l__leanquote_escape_skip_bool
+          { \__leanquote_render_word: }
           {
-            \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
+            \int_set_eq:NN \l__leanquote_render_start_int \l__leanquote_render_index_int
+            \__leanquote_render_decode:
+            \sys_if_engine_pdftex:F
               {
-                \clist_put_right:Ne \l__leanquote_native_clist { \int_use:N \l__leanquote_render_cp_int }
-                \cs_set_protected:cpe { __leanquote_native_ \int_use:N \l__leanquote_render_cp_int }
-                  { \exp_not:N \__leanquote_render_native:n { \int_use:N \l__leanquote_render_cp_int } }
+                \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
+                  {
+                    \clist_put_right:Ne \l__leanquote_native_clist { \int_use:N \l__leanquote_render_cp_int }
+                    \cs_set_protected:cpe { __leanquote_native_ \int_use:N \l__leanquote_render_cp_int }
+                      { \exp_not:N \__leanquote_render_native:n { \int_use:N \l__leanquote_render_cp_int } }
+                  }
               }
-          }
-        \str_set:Ne \l__leanquote_class_str
-          { \str_item:Nn \l__leanquote_classes_str { \l__leanquote_render_start_int } }
-        \bool_lazy_and:nnTF
-          { \str_if_eq_p:Vn \l__leanquote_class_str {k} }
-          { \__leanquote_render_id_p: }
-          {
-            \int_incr:N \l__leanquote_render_word_int
-            \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
-              { \bool_set_true:N \l__leanquote_render_exotic_bool }
-          }
-          {
-            \__leanquote_render_word:
-            \int_compare:nNnTF { \l__leanquote_render_cp_int } = {9}
-              { \str_put_right:Ne \l__leanquote_render_classes_str
-                  { \prg_replicate:nn
-                      { \lst@tabsize - \int_mod:nn { \str_count:N \l__leanquote_render_classes_str } { \lst@tabsize } }
-                      { \l__leanquote_class_str } } }
-              { \str_put_right:NV \l__leanquote_render_classes_str \l__leanquote_class_str }
+            \str_set:Ne \l__leanquote_class_str
+              { \str_item:Nn \l__leanquote_classes_str { \l__leanquote_render_start_int } }
+            \bool_lazy_and:nnTF
+              { \str_if_eq_p:Vn \l__leanquote_class_str {k} }
+              { \__leanquote_render_id_p: }
+              {
+                \int_incr:N \l__leanquote_render_word_int
+                \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
+                  { \bool_set_true:N \l__leanquote_render_exotic_bool }
+              }
+              {
+                \__leanquote_render_word:
+                \int_compare:nNnTF { \l__leanquote_render_cp_int } = {9}
+                  { \str_put_right:Ne \l__leanquote_render_classes_str
+                      { \prg_replicate:nn
+                          { \lst@tabsize - \int_mod:nn { \str_count:N \l__leanquote_render_classes_str } { \lst@tabsize } }
+                          { \l__leanquote_class_str } } }
+                  { \str_put_right:NV \l__leanquote_render_classes_str \l__leanquote_class_str }
+              }
           }
         \int_incr:N \l__leanquote_render_index_int
       }
@@ -1717,19 +1797,27 @@
 \cs_new_eq:NN \__leanquote_render_bol: \lst@BOLGobble
 \cs_new_eq:NN \__leanquote_render_output: \lst@OutputToken
 \cs_new_eq:NN \__leanquote_render_inline_end: \lst@InlineGJEnd
-\cs_new_protected:Npn \__leanquote_render_inline_content:n #1
+\cs_new_eq:NN \__leanquote_render_inline_m: \lst@InlineM
+\cs_new_protected:Npn \__leanquote_render_inline_content:nn #1#2
   {
-    \__leanquote_render_prepare:n {#1}
+    \__leanquote_render_prepare:n {#2}
     \__leanquote_render_chars:
-    \cs_set_eq:NN \lst@arg \@empty
-    \lst@InsideConvert {#1} \lst@arg \lst@DeInit \egroup
+    \bool_if:NTF \l__leanquote_escape_tex_bool
+      {
+        \__leanquote_render_inline_m: #1
+        \use:e { \exp_not:N \tex_scantokens:D { \exp_not:n {#2#1} } }
+      }
+      {
+        \cs_set_eq:NN \lst@arg \@empty
+        \lst@InsideConvert {#2} \lst@arg \lst@DeInit \egroup
+      }
   }
 \cs_new_protected:Npn \__leanquote_render_inline:n #1
   {
     \use:e
       {
         \cs_set_protected:Npn \exp_not:N \lst@temp ##1 \exp_not:n {#1}
-          { \exp_not:N \__leanquote_render_inline_content:n {##1} }
+          { \exp_not:N \__leanquote_render_inline_content:nn { \exp_not:n {#1} } {##1} }
       }
     \lst@temp
   }
@@ -1743,7 +1831,7 @@
       {
         \group_end:
         \cs_set_protected:Npn \lst@temp ##1 ~
-          { \__leanquote_render_inline_content:n {##1} }
+          { \__leanquote_render_inline_content:nn {#1} {##1} }
       }
     \lst@temp
   }
@@ -1783,15 +1871,64 @@
         \exp_not:N \__leanquote_render_emit:n {#1} \char_generate:nn {13} {13}
       }
   }
+% With TeX escapes, an environment must be retokenized as a whole: eagerly
+% tokenizing one line would freeze TeX commands with listings' active catcodes.
+\seq_new:N \l__leanquote_render_lines_seq
+\cs_new_protected:Npn \__leanquote_render_environment_content:n #1
+  {
+    % Prepare outside the initial Pmode group, so maps and the original BOL
+    % handler survive listings' mode interruptions around TeX escapes.
+    \lst@LeaveMode
+    \bool_set_true:N \l__leanquote_render_file_bool
+    \seq_clear:N \l__leanquote_render_maps_seq
+    \prg_replicate:nn { \lst@lineno - 1 }
+      { \seq_put_right:Nn \l__leanquote_render_maps_seq {} }
+    \seq_set_split:Nee \l__leanquote_render_lines_seq
+      { \char_generate:nn {13} {12} } { \tl_to_str:n {#1} }
+    \seq_map_inline:Nn \l__leanquote_render_lines_seq
+      {
+        \__leanquote_render_prepare:n {##1}
+        \seq_put_right:NV \l__leanquote_render_maps_seq \l__leanquote_render_classes_str
+      }
+    \__leanquote_render_chars:
+    \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_bol:
+    \lst@EnterMode \lst@Pmode { \lst@SelectCharTable }
+    \__leanquote_render_bol:
+    \use:e
+      {
+        \exp_not:N \tex_scantokens:D
+          { \exp_not:n {#1} \char_generate:nn {92} {12} \exp_not:o { \lstenv@endstring } }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_render_environment:
+  {
+    \tl_set:Ne \l_tmpa_tl
+      { \char_generate:nn {92} {12} \tl_to_str:o { \lstenv@endstring } }
+    \exp_args:NNV \lst@DefActive \l_tmpb_tl \l_tmpa_tl
+    \use:e
+      {
+        \cs_set_protected:Npn \exp_not:N \__leanquote_render_environment:w ##1
+            \exp_not:V \l_tmpb_tl
+          { \exp_not:N \__leanquote_render_environment_content:n {##1} }
+      }
+    \__leanquote_render_environment:w
+  }
 \cs_new_protected:Npn \__leanquote_render_init:
   {
     \lst@ifleanquotelex
       \__leanquote_lex_reset:
+      \__leanquote_render_escapes:
       \clist_clear:N \l__leanquote_native_clist
       \bool_set_false:N \l__leanquote_render_file_bool
       \str_clear:N \l__leanquote_render_classes_str
       \tl_if_empty:oTF { \lst@intname }
-        { \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_next: }
+        {
+          \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_next:
+          \lst@ifdisplaystyle
+            \bool_if:NT \l__leanquote_escape_tex_bool
+              { \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_environment: }
+          \fi
+        }
         {
           \bool_set_true:N \l__leanquote_render_file_bool
           \seq_clear:N \l__leanquote_render_maps_seq
