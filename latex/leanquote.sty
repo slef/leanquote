@@ -809,27 +809,41 @@
 % ---------------------------------------------------------------- the import block
 % Skip nested comments throughout the header. Emit comment-free source slices so
 % comments spanning command lines cannot leave an orphan opener or closer.
+\bool_new:N \l__leanquote_import_pending_bool
 \cs_new_protected:Npn \__leanquote_import_line:n #1
   {
     \str_set:Nn \l__leanquote_line_str {#1}
     \__leanquote_lex:N \l__leanquote_line_str
     \regex_match:nVTF
-      { \A \s* (?: module \s* \Z | (?:(?:public|private|meta) \s+)* import \s+ \S ) }
+      { \A \s* (?: (?:module|prelude) \s* \Z | (?:(?:public|private|meta) \s+)* import (?:\s|\Z) ) }
       \l__leanquote_code_str
       {
         \bool_set_true:N \l__leanquote_found_bool
         \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
         \tl_trim_spaces:N \l_tmpa_tl
         \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
+        \regex_match:nVTF { import \s* \Z } \l__leanquote_code_str
+          { \bool_set_true:N \l__leanquote_import_pending_bool }
+          { \bool_set_false:N \l__leanquote_import_pending_bool }
       }
       {
         \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
-          { \ior_map_break: }
+          {
+            \bool_if:NTF \l__leanquote_import_pending_bool
+              {
+                \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
+                \tl_trim_spaces:N \l_tmpa_tl
+                \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
+                \bool_set_false:N \l__leanquote_import_pending_bool
+              }
+              { \ior_map_break: }
+          }
       }
   }
 \cs_new_protected:Npn \__leanquote_imports:n #1
   {% #1 = .lean file, or export (its @@src lines)
     \bool_set_false:N \l__leanquote_found_bool
+    \bool_set_false:N \l__leanquote_import_pending_bool
     \__leanquote_lex_reset:
     \int_set:Nn \l__leanquote_matches_int { 1 }
     \ior_open:Nn \g__leanquote_ior {#1}
@@ -1334,6 +1348,7 @@
 % A word right after a dot is part of a qualified name (Mathlib.MeasureTheory.Measure, x.Set):
 % it is not colored as a keyword, type or tactic. The head of a name (Set in Set.univ) still is.
 \lst@Key{leanquotenodot}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquotenodot}
+\lst@Key{leanquoteunicode}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquoteunicode}
 \lst@AddToHook{Output}{%
   \lst@ifleanquotenodot
     \ifx\lst@lastother.%
@@ -1467,8 +1482,13 @@
         \clist_gput_right:Ne \g__leanquote_unicode_clist { \int_eval:n { `#1 } }
       }
     \use:c { leanquote@table }
-    \lst@AddToHook { SelectCharTable }
-      { \clist_map_inline:Nn \g__leanquote_unicode_clist { \char_set_catcode_active:n {##1} } }
+    \cs_new_protected:Npn \__leanquote_unicode_activate:
+      {
+        \lst@ifleanquoteunicode
+          \clist_map_inline:Nn \g__leanquote_unicode_clist { \char_set_catcode_active:n {##1} }
+        \fi
+      }
+    \lst@AddToHook { SelectCharTable } { \__leanquote_unicode_activate: }
   }
   {
     \cs_set:cpn { leanquote@pair } #1#2 { \exp_not:n { {#1} { {$#2$} } 1 } }
@@ -1478,7 +1498,7 @@
   {
     \exp_not:N \lstdefinestyle { leanquote }
       {
-        \exp_not:n {language=leanquote-lean, leanquotenodot, basicstyle=\ttfamily\small, columns=fullflexible,
+        \exp_not:n {language=leanquote-lean, leanquotenodot, leanquoteunicode, basicstyle=\ttfamily\small, columns=fullflexible,
   keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
   keywordstyle=\bfseries\color{leanquotekeyword}, keywordstyle=[2]\color{leanquotetype},
   keywordstyle=[3]\color{leanquotetactic}, keywordstyle=[4]\bfseries\color{red!75!black},

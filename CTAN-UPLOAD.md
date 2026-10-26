@@ -28,6 +28,6 @@ Description:
 Before uploading:
 - [x] make the GitHub repository public;
 - [x] prior-art check done (`PRIOR-ART.md`); related tools credited in the manual and README;
-- [ ] decide the license (MIT now; LPPL 1.3c is the CTAN default);
+- [x] choose the MIT License and include `LICENSE` in the archive;
 - [ ] read the manual once more;
 - [ ] Lean FRO's answer on bundling the logo (email drafted 2026-10-25).

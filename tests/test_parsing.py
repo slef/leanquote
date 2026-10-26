@@ -164,6 +164,19 @@ MULTILINE_IMPORTS = source('''
 
 
 class ParsingTests(unittest.TestCase):
+    def test_prelude_and_split_import_commands(self):
+        for lean, expected in [
+            ('prelude\nimport Init\n', 'prelude\nimport Init'),
+            ('import\n  Init\n', 'import\nInit'),
+            ('import /- first\nsecond -/ Init\n', 'import\nInit'),
+        ]:
+            with self.subTest(lean=lean):
+                snippets, _ = self.compile(lean, r"\leanquote[imports]{}")
+                self.assertEqual(snippets, [expected])
+                exported = '@@leanquote-export 1\n' + ''.join(
+                    '@@src ' + line + '\n' for line in lean.splitlines())
+                saved, _ = self.compile('', r"\leanquote[file=Saved.leanquote,imports]{}", export=exported)
+                self.assertEqual(saved, snippets)
     @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
     def test_multiline_escaped_identifier_cannot_declare_a_phantom(self):
         lean = 'def «first\ndef phantom : Nat := 99\nlast» : Nat := 1\n'

@@ -50,7 +50,7 @@ slash. Without `project`, paths are relative to the LaTeX working directory. Exp
 without a `project` prefix.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
-in the same listing. `\leanquote[imports]{}` quotes only that block: the `module` and
+in the same listing. `\leanquote[imports]{}` quotes only that block: the `module`, `prelude`, and
 `[public|private|meta] import` lines at the top of the file, with comments omitted.
 It defaults to false; bare `imports` means `imports=true`. An enabled setup default can
 be overridden with `imports=false` for one quote. Names such as `import` and `imports`

@@ -250,6 +250,7 @@ where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
 Nested comments, escaped and raw strings, and character literals are skipped when recognizing
 declarations. Comments are omitted from the import block, including inline and multiline comments.
+The header may include \texttt{module} or \texttt{prelude}, and import commands may span lines.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
