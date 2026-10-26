@@ -357,6 +357,41 @@ class ParsingTests(unittest.TestCase):
             'theorem unicode ⦃s : String⦄ : s = s := ...',
         ])
 
+    def test_result_type_assignments_are_preserved(self):
+        declarations = [
+            "theorem proofLet : let p := True; p := by trivial",
+            "theorem proofHave : have p := True; p := by trivial",
+            "theorem proofNested : let p := let q := True; q; p := by trivial",
+            "theorem proofMultiline :\n  let p := True\n  have q := p\n  q := by trivial",
+        ]
+        lean = "\n".join(declarations) + "\n"
+        names = ["proofLet", "proofHave", "proofNested", "proofMultiline"]
+        body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
+        snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        expected = [decl.rsplit(" := by", 1)[0] + " := ..." for decl in declarations]
+        self.assertEqual(snippets, expected)
+        exported = "@@leanquote-export 2\n" + "".join(
+            "@@begin " + name + "\n@@axioms\n" +
+            "".join("@@code " + line + "\n" for line in decl.splitlines()) + "@@end\n"
+            for name, decl in zip(names, declarations))
+        saved, _ = self.compile("", body.replace("[proof=false]", "[proof=false,file=Saved.leanquote]"),
+                                export=exported)
+        self.assertEqual(saved, expected)
+
+    def test_unicode_match_suffix_does_not_expose_equation_proof(self):
+        lean = ("def αmatch : Nat → Prop := fun n => n = n\n"
+                "theorem proofUnicode : (n : Nat) → αmatch n\n  | _ => rfl\n")
+        body = r"\leanquote[proof=false]{proofUnicode}"
+        snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        expected = ["theorem proofUnicode : (n : Nat) → αmatch n\n := ..."]
+        self.assertEqual(snippets, expected)
+        exported = ("@@leanquote-export 2\n@@begin proofUnicode\n@@axioms\n"
+                    "@@code theorem proofUnicode : (n : Nat) → αmatch n\n"
+                    "@@code   | _ => rfl\n@@end\n")
+        saved, _ = self.compile("", body.replace("[proof=false]", "[proof=false,file=Saved.leanquote]"),
+                                export=exported)
+        self.assertEqual(saved, expected)
+
     def test_export_proof_hiding_uses_same_scanner(self):
         declaration = PROOFS.split("public theorem escaped", 1)[1].split("public theorem multiline", 1)[0].strip()
         declaration = "public theorem escaped" + declaration
@@ -415,6 +450,17 @@ class ParsingTests(unittest.TestCase):
             "import Init.Data.Nat.Basic",
         ])
         exported = "@@leanquote-export 1\n" + "".join("@@src " + line + "\n" for line in IMPORTS.splitlines())
+        saved, _ = self.compile("", r"\leanquote[imports,file=Saved.leanquote]{}", export=exported)
+        self.assertEqual(saved, snippets)
+
+    def test_import_modifiers_can_span_lines_and_comments(self):
+        lean = ("module\npublic\n/- between modifier and import -/\nimport Init\n"
+                "public\nmeta\nimport\nLean\n"
+                "public\ndef value : Nat := 1\n")
+        snippets, _ = self.compile(lean, r"\leanquote[imports]{}", olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, ["module\npublic\nimport Init\npublic\nmeta\nimport\nLean"])
+        exported = "@@leanquote-export 2\n" + "".join(
+            "@@src " + line + "\n" for line in lean.splitlines())
         saved, _ = self.compile("", r"\leanquote[imports,file=Saved.leanquote]{}", export=exported)
         self.assertEqual(saved, snippets)
 

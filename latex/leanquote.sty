@@ -429,6 +429,70 @@
     \bool_set:Nn \l__leanquote_string_bool { ! \seq_if_empty_p:N \l__leanquote_context_seq }
   }
 
+\int_new:N \l__leanquote_decode_bytes_int
+\cs_new:Npn \__leanquote_charcode:n #1 { `#1 }
+\cs_new_protected:Npn \__leanquote_decode:NNN #1#2#3
+  {
+    \int_set:Nn #3
+      { \exp_args:Ne \__leanquote_charcode:n
+          { \str_item:Nn #1 { #2 } } }
+    \sys_if_engine_pdftex:T
+      {
+        \int_compare:nNnT { #3 } > {191}
+          {
+            \int_compare:nNnTF { #3 } < {224}
+              { \int_set:Nn \l__leanquote_decode_bytes_int {1}
+                \int_sub:Nn #3 {192} }
+              {
+                \int_compare:nNnTF { #3 } < {240}
+                  { \int_set:Nn \l__leanquote_decode_bytes_int {2}
+                    \int_sub:Nn #3 {224} }
+                  { \int_set:Nn \l__leanquote_decode_bytes_int {3}
+                    \int_sub:Nn #3 {240} }
+              }
+            \prg_replicate:nn { \l__leanquote_decode_bytes_int }
+              {
+                \int_incr:N #2
+                \int_set:Nn #3
+                  { 64 * #3 - 128 +
+                    \exp_args:Ne \__leanquote_charcode:n
+                      { \str_item:Nn #1 { #2 } } }
+              }
+          }
+      }
+  }
+% Lean's isIdRest: ASCII alphanumerics, _'!?, letter-like Unicode, subscripts.
+\prg_new_conditional:Npnn \__leanquote_id:n #1 { p , TF }
+  {
+    \bool_if:nTF
+      {
+        \int_compare_p:n {48 <= #1 <= 57} ||
+        \int_compare_p:n {65 <= #1 <= 90} ||
+        \int_compare_p:n {97 <= #1 <= 122} ||
+        \int_compare_p:n {#1 = 95} ||
+        \int_compare_p:n {#1 = 39} ||
+        \int_compare_p:n {#1 = 33} ||
+        \int_compare_p:n {#1 = 63} ||
+        (\int_compare_p:n {192 <= #1 <= 383} &&
+          !\int_compare_p:n {#1 = 215} &&
+          !\int_compare_p:n {#1 = 247}) ||
+        (\int_compare_p:n {945 <= #1 <= 969} &&
+          !\int_compare_p:n {#1 = 955}) ||
+        (\int_compare_p:n {913 <= #1 <= 937} &&
+          !\int_compare_p:n {#1 = 928} &&
+          !\int_compare_p:n {#1 = 931}) ||
+        \int_compare_p:n {970 <= #1 <= 1019} ||
+        \int_compare_p:n {7936 <= #1 <= 8190} ||
+        \int_compare_p:n {8448 <= #1 <= 8527} ||
+        \int_compare_p:n {119964 <= #1 <= 120223} ||
+        \int_compare_p:n {8320 <= #1 <= 8329} ||
+        \int_compare_p:n {8336 <= #1 <= 8348} ||
+        \int_compare_p:n {7522 <= #1 <= 7530} ||
+        \int_compare_p:n {#1 = 11388}
+      }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+
 % ---------------------------------------------------------------- hiding proofs (proof=false)
 % The mask preserves offsets, so only the proof assignment outside brackets is replaced.
 % Definitions keep their bodies, including string and comment contents.
@@ -453,9 +517,30 @@
     \str_replace_all:Nne \l__leanquote_code_str { ⦄ }
       { ) \prg_replicate:nn { \str_count:n {⦄} - 1 } { \c_space_tl } }
   }
+\int_new:N \l__leanquote_proof_cp_int
+\int_new:N \l__leanquote_proof_assignments_int
+\str_new:N \l__leanquote_proof_word_str
+\cs_new_protected:Npn \__leanquote_proof_word:
+  {
+    \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+      {
+        \str_case:Vn \l__leanquote_proof_word_str
+          {
+            {match} { \bool_set_true:N \l__leanquote_match_type_bool }
+            {let} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {have} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {letI} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {haveI} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {let_fun} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {let_delayed} { \int_incr:N \l__leanquote_proof_assignments_int }
+            {let_tmp} { \int_incr:N \l__leanquote_proof_assignments_int }
+          }
+      }
+    \str_clear:N \l__leanquote_proof_word_str
+  }
 \cs_new_protected:Npn \__leanquote_find_cut:N #1
   {
-    \int_zero:N \l__leanquote_pos_int
+    \int_set:Nn \l__leanquote_pos_int {1}
     \int_zero:N \l__leanquote_cut_int
     \int_zero:N \l__leanquote_prev_int
     % Equation-style theorem bodies start with a top-level pattern alternative.
@@ -467,44 +552,46 @@
           { \int_set:Nn \l__leanquote_cut_int { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } } }
           { }
       }
-    \str_map_inline:Nn #1
+    \bool_while_do:nn
+      { \int_compare_p:n { \l__leanquote_pos_int <= \str_count:N #1 } &&
+        \int_compare_p:nNn { \l__leanquote_cut_int } = {0} }
       {
-        \int_compare:nNnT { \l__leanquote_cut_int } > {0} { \str_map_break: }
-        \int_incr:N \l__leanquote_pos_int
-        \int_case:nn { `##1 }
+        \__leanquote_decode:NNN #1 \l__leanquote_pos_int \l__leanquote_proof_cp_int
+        \__leanquote_id:nTF { \l__leanquote_proof_cp_int }
           {
-            { 40 }    { \int_incr:N \l__leanquote_depth_int }
-            { 91 }    { \int_incr:N \l__leanquote_depth_int }
-            { 123 }   { \int_incr:N \l__leanquote_depth_int }
-            { 41 }    { \int_decr:N \l__leanquote_depth_int }
-            { 93 }    { \int_decr:N \l__leanquote_depth_int }
-            { 125 }   { \int_decr:N \l__leanquote_depth_int }
-            { 109 }
+            % ASCII keywords remain literal; Unicode identifier characters
+            % prevent their suffixes from being mistaken for keywords.
+            \str_put_right:Ne \l__leanquote_proof_word_str
+              { \int_compare:nNnTF { \l__leanquote_proof_cp_int } < {128}
+                  { \char_generate:nn { \l__leanquote_proof_cp_int } {12} } {_} }
+          }
+          {
+            \__leanquote_proof_word:
+            \int_case:nn { \l__leanquote_proof_cp_int }
               {
-                % Alternatives in an unparenthesized match result type belong
-                % to the statement; its proof still starts at :=.
-                \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+                {40} { \int_incr:N \l__leanquote_depth_int }
+                {91} { \int_incr:N \l__leanquote_depth_int }
+                {123} { \int_incr:N \l__leanquote_depth_int }
+                {41} { \int_decr:N \l__leanquote_depth_int }
+                {93} { \int_decr:N \l__leanquote_depth_int }
+                {125} { \int_decr:N \l__leanquote_depth_int }
+                {61}
                   {
-                    \tl_set:Ne \l_tmpa_tl
-                      { \str_range:Nnn #1 { \int_max:nn {1} { \l__leanquote_pos_int - 1 } }
-                          { \l__leanquote_pos_int + 5 } }
-                    \regex_match:nVT { (?:\A|[^A-Za-z_0-9']) match (?:\s|\Z) } \l_tmpa_tl
-                      { \bool_set_true:N \l__leanquote_match_type_bool }
-                  }
-              }
-            { 61 }
-              {
-                \bool_lazy_and:nnT
-                  { \int_compare_p:nNn { \l__leanquote_prev_int } = { 58 } }
-                  { \int_compare_p:nNn { \l__leanquote_depth_int } = { 0 } }
-                  {
-                    \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 }
-                    \str_map_break:
+                    \bool_lazy_and:nnT
+                      { \int_compare_p:nNn { \l__leanquote_prev_int } = {58} }
+                      { \int_compare_p:nNn { \l__leanquote_depth_int } = {0} }
+                      {
+                        \int_compare:nNnTF { \l__leanquote_proof_assignments_int } > {0}
+                          { \int_decr:N \l__leanquote_proof_assignments_int }
+                          { \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 } }
+                      }
                   }
               }
           }
-        \int_set:Nn \l__leanquote_prev_int { `##1 }
+        \int_set_eq:NN \l__leanquote_prev_int \l__leanquote_proof_cp_int
+        \int_incr:N \l__leanquote_pos_int
       }
+    \__leanquote_proof_word:
   }
 \cs_new_protected:Npn \__leanquote_flush:
   {
@@ -515,6 +602,8 @@
         \bool_set_false:N \l__leanquote_cutdone_bool
         \bool_set_false:N \l__leanquote_match_type_bool
         \int_zero:N \l__leanquote_depth_int
+        \int_zero:N \l__leanquote_proof_assignments_int
+        \str_clear:N \l__leanquote_proof_word_str
         \__leanquote_lex_reset:
         \bool_set_true:N \l__leanquote_proof_scan_bool
         \seq_map_inline:Nn \l__leanquote_buf_seq
@@ -847,33 +936,41 @@
 % Skip nested comments throughout the header. Emit comment-free source slices so
 % comments spanning command lines cannot leave an orphan opener or closer.
 \bool_new:N \l__leanquote_import_pending_bool
+\seq_new:N \l__leanquote_import_modifiers_seq
 \cs_new_protected:Npn \__leanquote_import_line:n #1
   {
     \str_set:Nn \l__leanquote_line_str {#1}
     \__leanquote_lex:N \l__leanquote_line_str
+    \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
+    \tl_trim_spaces:N \l_tmpa_tl
     \regex_match:nVTF
-      { \A \s* (?: (?:module|prelude) \s* \Z | (?:(?:public|private|meta) \s+)* import (?:\s|\Z) ) }
+      { \A \s* (?:(?:public|private|meta) \s+)* (?:public|private|meta) \s* \Z }
       \l__leanquote_code_str
+      { \seq_put_right:NV \l__leanquote_import_modifiers_seq \l_tmpa_tl }
       {
-        \bool_set_true:N \l__leanquote_found_bool
-        \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
-        \tl_trim_spaces:N \l_tmpa_tl
-        \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-        \regex_match:nVTF { import \s* \Z } \l__leanquote_code_str
-          { \bool_set_true:N \l__leanquote_import_pending_bool }
-          { \bool_set_false:N \l__leanquote_import_pending_bool }
-      }
-      {
-        \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
+        \regex_match:nVTF
+          { \A \s* (?: (?:module|prelude) \s* \Z | (?:(?:public|private|meta) \s+)* import (?:\s|\Z) ) }
+          \l__leanquote_code_str
           {
-            \bool_if:NTF \l__leanquote_import_pending_bool
+            \bool_set_true:N \l__leanquote_found_bool
+            \seq_concat:NNN \l__leanquote_buf_seq
+              \l__leanquote_buf_seq \l__leanquote_import_modifiers_seq
+            \seq_clear:N \l__leanquote_import_modifiers_seq
+            \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
+            \regex_match:nVTF { import \s* \Z } \l__leanquote_code_str
+              { \bool_set_true:N \l__leanquote_import_pending_bool }
+              { \bool_set_false:N \l__leanquote_import_pending_bool }
+          }
+          {
+            \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
               {
-                \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
-                \tl_trim_spaces:N \l_tmpa_tl
-                \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-                \bool_set_false:N \l__leanquote_import_pending_bool
+                \bool_if:NTF \l__leanquote_import_pending_bool
+                  {
+                    \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
+                    \bool_set_false:N \l__leanquote_import_pending_bool
+                  }
+                  { \ior_map_break: }
               }
-              { \ior_map_break: }
           }
       }
   }
@@ -881,6 +978,7 @@
   {% #1 = .lean file, or export (its @@src lines)
     \bool_set_false:N \l__leanquote_found_bool
     \bool_set_false:N \l__leanquote_import_pending_bool
+    \seq_clear:N \l__leanquote_import_modifiers_seq
     \__leanquote_lex_reset:
     \int_set:Nn \l__leanquote_matches_int { 1 }
     \ior_open:Nn \g__leanquote_ior {#1}
@@ -1529,72 +1627,17 @@
 \int_new:N \l__leanquote_render_index_int
 \int_new:N \l__leanquote_render_start_int
 \int_new:N \l__leanquote_render_cp_int
-\int_new:N \l__leanquote_render_bytes_int
 \int_new:N \l__leanquote_render_word_int
 \bool_new:N \l__leanquote_render_exotic_bool
 \bool_new:N \l__leanquote_render_file_bool
 \seq_new:N \l__leanquote_render_maps_seq
 \clist_new:N \l__leanquote_native_clist
-\cs_new:Npn \__leanquote_charcode:n #1 { `#1 }
 \cs_new_protected:Npn \__leanquote_render_decode:
-  {
-    \int_set:Nn \l__leanquote_render_cp_int
-      { \exp_args:Ne \__leanquote_charcode:n
-          { \str_item:Nn \l__leanquote_render_line_str { \l__leanquote_render_index_int } } }
-    \sys_if_engine_pdftex:T
-      {
-        \int_compare:nNnT { \l__leanquote_render_cp_int } > {191}
-          {
-            \int_compare:nNnTF { \l__leanquote_render_cp_int } < {224}
-              { \int_set:Nn \l__leanquote_render_bytes_int {1}
-                \int_sub:Nn \l__leanquote_render_cp_int {192} }
-              {
-                \int_compare:nNnTF { \l__leanquote_render_cp_int } < {240}
-                  { \int_set:Nn \l__leanquote_render_bytes_int {2}
-                    \int_sub:Nn \l__leanquote_render_cp_int {224} }
-                  { \int_set:Nn \l__leanquote_render_bytes_int {3}
-                    \int_sub:Nn \l__leanquote_render_cp_int {240} }
-              }
-            \prg_replicate:nn { \l__leanquote_render_bytes_int }
-              {
-                \int_incr:N \l__leanquote_render_index_int
-                \int_set:Nn \l__leanquote_render_cp_int
-                  { 64 * \l__leanquote_render_cp_int - 128 +
-                    \exp_args:Ne \__leanquote_charcode:n
-                      { \str_item:Nn \l__leanquote_render_line_str { \l__leanquote_render_index_int } } }
-              }
-          }
-      }
-  }
-% Lean's isIdRest: ASCII alphanumerics, _'!?, letter-like Unicode, subscripts.
+  { \__leanquote_decode:NNN \l__leanquote_render_line_str
+      \l__leanquote_render_index_int \l__leanquote_render_cp_int }
 \prg_new_conditional:Npnn \__leanquote_render_id: { p , TF }
   {
-    \bool_if:nTF
-      {
-        \int_compare_p:n {48 <= \l__leanquote_render_cp_int <= 57} ||
-        \int_compare_p:n {65 <= \l__leanquote_render_cp_int <= 90} ||
-        \int_compare_p:n {97 <= \l__leanquote_render_cp_int <= 122} ||
-        \int_compare_p:n {\l__leanquote_render_cp_int = 95} ||
-        \int_compare_p:n {\l__leanquote_render_cp_int = 39} ||
-        \int_compare_p:n {\l__leanquote_render_cp_int = 33} ||
-        \int_compare_p:n {\l__leanquote_render_cp_int = 63} ||
-        (\int_compare_p:n {192 <= \l__leanquote_render_cp_int <= 383} &&
-          !\int_compare_p:n {\l__leanquote_render_cp_int = 215} &&
-          !\int_compare_p:n {\l__leanquote_render_cp_int = 247}) ||
-        (\int_compare_p:n {945 <= \l__leanquote_render_cp_int <= 969} &&
-          !\int_compare_p:n {\l__leanquote_render_cp_int = 955}) ||
-        (\int_compare_p:n {913 <= \l__leanquote_render_cp_int <= 937} &&
-          !\int_compare_p:n {\l__leanquote_render_cp_int = 928} &&
-          !\int_compare_p:n {\l__leanquote_render_cp_int = 931}) ||
-        \int_compare_p:n {970 <= \l__leanquote_render_cp_int <= 1019} ||
-        \int_compare_p:n {7936 <= \l__leanquote_render_cp_int <= 8190} ||
-        \int_compare_p:n {8448 <= \l__leanquote_render_cp_int <= 8527} ||
-        \int_compare_p:n {119964 <= \l__leanquote_render_cp_int <= 120223} ||
-        \int_compare_p:n {8320 <= \l__leanquote_render_cp_int <= 8329} ||
-        \int_compare_p:n {8336 <= \l__leanquote_render_cp_int <= 8348} ||
-        \int_compare_p:n {7522 <= \l__leanquote_render_cp_int <= 7530} ||
-        \int_compare_p:n {\l__leanquote_render_cp_int = 11388}
-      }
+    \__leanquote_id:nTF { \l__leanquote_render_cp_int }
       { \prg_return_true: } { \prg_return_false: }
   }
 \cs_new_protected:Npn \__leanquote_render_word:
