@@ -594,15 +594,21 @@
               }
           }
           {
-            \regex_match:nnT { \A @@begin\x{20} (.*\.)? \u{l__leanquote_name_str} \Z } {##1}
+            \regex_extract_once:nnNTF { \A @@begin\x{20} (.*) \Z } {##1} \l__leanquote_decl_seq
               {
-                \int_incr:N \l__leanquote_matches_int
-                \bool_if:NF \l__leanquote_found_bool
+                \str_set:Ne \l__leanquote_declname_str { \seq_item:Nn \l__leanquote_decl_seq {2} }
+                \__leanquote_names_match:TF
                   {
-                    \bool_set_true:N \l__leanquote_inside_bool
-                    \bool_set_true:N \l__leanquote_found_bool
+                    \int_incr:N \l__leanquote_matches_int
+                    \bool_if:NF \l__leanquote_found_bool
+                      {
+                        \bool_set_true:N \l__leanquote_inside_bool
+                        \bool_set_true:N \l__leanquote_found_bool
+                      }
                   }
+                  { }
               }
+              { }
           }
       }
     \ior_close:N \g__leanquote_ior
@@ -1071,8 +1077,15 @@
               }
           }
           {
-            \str_if_eq:VnF \l_leanquote_verify_tl { true }
-              { \bool_set_true:N \l__leanquote_export_axioms_bool }
+            \str_set:Ne \l__leanquote_trace_str
+              { \str_range:Nnn \l_leanquote_olean_tl {1} {-7} .trace }
+            % A surviving trace with no artifact is evidence of a failed local
+            % build, not a portable export with no local build to check.
+            \file_if_exist:VF \l__leanquote_trace_str
+              {
+                \str_if_eq:VnF \l_leanquote_verify_tl { true }
+                  { \bool_set_true:N \l__leanquote_export_axioms_bool }
+              }
           }
       }
       { }

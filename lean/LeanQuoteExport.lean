@@ -152,9 +152,12 @@ def splitDoc (text : String) : String × String := Id.run do
 
 /-- A generated recursor/helper borrows its parent's selection range; it has no own name
 in the source. Private declarations do have source names, after removing Lean's prefix. -/
-def sourceFacing (n : Name) (selected : String) : Bool :=
-  let name := (privateToUserName n).toString
-  name == selected || name.endsWith ("." ++ selected)
+def sourceFacing (env : Environment) (n : Name) (selected : String) : Bool :=
+  -- Parse the source token to its canonical components: optional escaping
+  -- must not drop real declarations or split dots inside an escaped name.
+  match Parser.runParserCategory env `term selected with
+  | .ok stx => stx.isIdent && stx.getId.isSuffixOf (privateToUserName n)
+  | .error _ => false
 
 structure Entry where
   name : Name
@@ -218,7 +221,7 @@ def exportModule (args : List String) : IO Unit := do
   for n in env.header.moduleData[idx.toNat]!.constNames do
     let (r?, _) ← (findDeclarationRanges? n : CoreM _).toIO ctx {env}
     let some r := r? | continue
-    unless sourceFacing n (slice lines r.selectionRange) do continue
+    unless sourceFacing env n (slice lines r.selectionRange) do continue
     let range := if r.range == r.selectionRange then
         (fields.find? (contains · r.selectionRange)).getD r.range
       else r.range

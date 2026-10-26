@@ -55,6 +55,9 @@ private def secret : Nat := 2
 private theorem hidden : False := by sorry
 def sameA : Nat := 3 def sameB : Nat := 4
 def café : Nat := 5 def «odd name» : Nat := 6
+def «ordinary» : Nat := 7
+def «import» : Nat := 8
+def «dot.name».«leaf» : Nat := 9
 axiom assumed : True
 theorem usesAssumed : True := assumed
 theorem usesDependency : True := dependency
@@ -277,6 +280,11 @@ srcDir = "lib-src"
         self.assertEqual(self.code("sameB"), "def sameB : Nat := 4")
         self.assertEqual(self.code("café"), "def café : Nat := 5")
         self.assertEqual(self.code("«odd name»"), "def «odd name» : Nat := 6")
+
+    def test_optional_escaping_preserves_source_declarations(self):
+        self.assertEqual(self.code("ordinary"), "def «ordinary» : Nat := 7")
+        self.assertEqual(self.code("import"), "def «import» : Nat := 8")
+        self.assertEqual(self.code("«dot.name».leaf"), "def «dot.name».«leaf» : Nat := 9")
 
     def test_marker_and_empty_payload_lines(self):
         expected = "def marker" + SOURCE.split("def marker", 1)[1].split("\nend Example", 1)[0]

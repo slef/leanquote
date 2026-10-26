@@ -5,6 +5,25 @@ from tex_support import TexTestCase
 
 
 class ExportTests(TexTestCase):
+    def test_explicit_export_with_missing_artifact_and_trace_is_unverified(self):
+        files = export_files(axioms="sorryAx")
+        del files["A.olean"]
+        _, output = self.compile_tex(files, r"\leanquote[file=A.leanquote,verify=auto]{value}")
+        self.assertIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+        self.assertNotIn("LEANQUOTE-BADGE:USES SORRY", output)
+
+    def test_export_name_components_match_source_lookup(self):
+        code = "namespace A\ndef plain : Nat := 1\nend A\n"
+        for name in ["plain", "A.plain", "_root_.A.plain", "A.«plain»", "«A».plain"]:
+            with self.subTest(name=name):
+                files = export_files(code, name="A.plain")
+                files["A.leanquote"] = make_export("def plain : Nat := 1\n", source=code, name="A.plain")
+                snippets, _ = self.compile_tex(files, r"\leanquote[file=A.leanquote]{" + name + "}")
+                self.assertEqual(snippets, ["def plain : Nat := 1"])
+        for name in ["_root_.plain", "Missing.plain", "«A.plain»"]:
+            with self.subTest(name=name):
+                self.compile_tex(files, r"\leanquote[file=A.leanquote]{" + name + "}", success=False)
+
     def test_imports_with_exports_preserve_declaration_verification(self):
         declaration = "theorem bad : True := by sorry\n"
         source = "import Init\n\n" + declaration
