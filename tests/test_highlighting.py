@@ -22,7 +22,8 @@ class HighlightingTests(TexTestCase):
             body or r"\lstinputlisting[style=leanquote," + options + r"]{Fixture.lean}",
             preamble=RENDER_LOG,
         )
-        return [(token.replace(r"\lst@nolig ", "").replace(r"\lst@um", "").strip(),
+        return [(token.replace(r"\lst@nolig ", "").replace(r"\lst@um_ ", "_")
+                 .replace(r"\lst@um", "").strip(),
                  tuple(float(v) for v in rgb.split(',')), int(line))
                 for token, rgb, line in re.findall(
                     r"LQ-RENDER:([^\n]*?)\|([\d.,]+)\|(\d+)", output)]
@@ -79,7 +80,7 @@ def afterMultiline : Nat := 6
 
     def test_identifier_boundaries_include_apostrophes_and_unicode(self):
         rendered = self.render("def theorem' := 1\ndef αNat := 2\ndef Natα := 3\ndef Nat₁ := 4\n")
-        self.assert_paint(rendered, 'theorem', 1, (0, 0, 0))
+        self.assert_paint(rendered, "theorem'", 1, (0, 0, 0))
         for line in (2, 3, 4):
             self.assert_paint(rendered, 'Nat', line, (0, 0, 0))
 
@@ -93,6 +94,41 @@ def after : Nat := 1
         self.assert_paint(rendered, 'sorry', 2, (1, .5, 0))
         self.assert_paint(rendered, 'Nat', 2, (1, .5, 0))
         self.assert_paint(rendered, 'def', 3, (41/255, 110/255, 166/255))
+
+    def test_core_vocabulary_and_custom_keyword_boundaries(self):
+        rendered = self.render('''forall for unless while try catch mut local export
+IO simp_all simp? repeat' theorem' Nat'
+ProjectType
+''', options="morekeywords={[2]{ProjectType}}")
+        for word in ('forall', 'for', 'unless', 'while', 'try', 'catch', 'mut', 'local', 'export'):
+            self.assert_paint(rendered, word, 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'IO', 2, (38/255, 128/255, 89/255))
+        for word in ('simp_all', 'simp?', "repeat'"):
+            self.assert_paint(rendered, word, 2, (136/255, 84/255, 150/255))
+        self.assert_paint(rendered, "theorem'", 2, (0, 0, 0))
+        self.assert_paint(rendered, "Nat'", 2, (0, 0, 0))
+        self.assert_paint(rendered, 'ProjectType', 3, (38/255, 128/255, 89/255))
+        rendered = self.render('def thing : ProjectType := sorry\n', body=r'''
+\leanquotesetup{morekeywords=[2]{ProjectType}}
+\leanquote[file=Fixture.lean,verify=false]{thing}
+''')
+        self.assert_paint(rendered, 'ProjectType', 1, (38/255, 128/255, 89/255))
+
+    def test_default_string_color_can_be_overridden_or_disabled(self):
+        for options, expected in [('', (.6, 77/255, 0)),
+                                  (r'stringstyle=\color{blue}', (0, 0, 1)),
+                                  ('stringstyle={}', (0, 0, 0))]:
+            with self.subTest(options=options):
+                rendered = self.render('def text := "sorry"\n', options=options)
+                self.assert_paint(rendered, 'sorry', 1, expected)
+
+    def test_qualified_names_keep_only_head_highlighting(self):
+        rendered = self.render('Set.univ x.Set Mathlib.MeasureTheory.Measure\n')
+        sets = [rgb for token, rgb, _ in rendered if token == 'Set']
+        self.assertEqual(len(sets), 2)
+        self.assertAlmostEqual(sets[0][1], 128/255, delta=.0001)
+        self.assertEqual(sets[1], (0, 0, 0))
+        self.assert_paint(rendered, 'Measure', 1, (0, 0, 0))
 
     def test_listing_environment_uses_same_lexer(self):
         rendered = self.render('', body=r'''
@@ -137,6 +173,7 @@ def after : Nat := 1
 \lstinputlisting[language=Python]{control.py}
 """,
             preamble=r"""
+\lstset{style=leanquote}
 \makeatletter
 \lst@AddToHook{SelectCharTable}{%
   \ifnum\catcode"03B1=13 \typeout{LEANQUOTE-UNICODE:active}%

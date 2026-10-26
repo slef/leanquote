@@ -135,13 +135,14 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `file=<path>` | current file | select the file to quote; per-call overrides leave the default unchanged |
 | `doc` | false | also show each declaration's doc comment |
 | `imports` | false | prepend the import block once; an empty name list quotes only imports |
-| `proof` | true | with `proof=false`, theorems and lemmas stop at the `:=` of their proof, shown as `:= ...` (definitions keep their bodies) |
+| `proof` | true | with `proof=false`, theorem and lemma proofs (assignment or equation style) become `:= ...`; definitions keep their bodies |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `boxback=<color>` | `black!3` | background color of the box |
 | `boxframe=<color>` | `black!45` | border color of the box and logo outline |
 | `logo=<file>` | none | image in the box's top-right corner; see “Boxes and logos” below |
 | `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode on all three engines |
 | `basicstyle=<commands>` | from style | font commands for the code; overrides the selected listings style's font |
+| `stringstyle=<commands>` | from style | font/color commands for string and character literals; default `\color{leanquotestring}` |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
 | `verify=<mode>` | `auto` | `auto`: check available source/build/export metadata; `true`: also mark missing compiled files UNVERIFIED; `false`: disable verification (old name: `check`) |
@@ -193,6 +194,10 @@ The default style colors keywords (blue), sorts and common Lean/Mathlib types su
 is green in `Set.univ` but import paths like `Mathlib.MeasureTheory.Measure.Lebesgue.Basic` stay
 plain. Add your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Point}}` (`[3]` for tactics);
 the colors are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
+Strings and character literals use the brown `leanquotestring` color. Raw strings,
+interpolation expressions, nested comments, and escaped identifiers are recognized separately.
+Change the literal style with `\leanquotesetup{stringstyle=\color{brown}}`, or use
+`stringstyle={}` for plain literals. These settings can also be passed to one quote.
 
 The default style typesets about a hundred of Lean's Unicode symbols as math, under
 pdfLaTeX, LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a

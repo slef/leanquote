@@ -162,6 +162,7 @@ Option & Default & Meaning \\
 \opt{logo=}\meta{file} & none & image in the frame's top-right corner \\
 \opt{style=}\meta{name} & \texttt{leanquote} & listings style used for the code \\
 \opt{basicstyle} & from style & font commands for the code; overrides the selected style's font \\
+\opt{stringstyle} & from style & font and color commands for string and character literals \\
 \opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
 \opt{verify=}\meta{mode} & \texttt{auto} & \texttt{auto}, \texttt{true} or \texttt{false}; see Section~\ref{sec:compiled} \\
@@ -217,13 +218,23 @@ common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{N
 \texttt{omega}, \dots) in purple; and \texttt{sorry} in red. A word directly after a dot is
 part of a qualified name and is not colored: in \texttt{Set.univ} the head \texttt{Set} is green,
 but import paths such as \texttt{Mathlib.MeasureTheory.Measure.Lebesgue.Basic} and fields such as
-\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colors are
-\texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
+\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style).
+String and character literals are brown. Raw strings, interpolation expressions, nested
+comments, and escaped identifiers are recognized separately, so their contents do not
+accidentally become keywords or comments. The colors are
+\texttt{leanquotekeyword}, \texttt{leanquotetype}, \texttt{leanquotetactic}, and
+\texttt{leanquotestring}, and can be
 redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
 \opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
 document's own types:
 \begin{latexsrc}
 \leanquotesetup{morekeywords=[2]{Prototile, Point}}
+\end{latexsrc}
+The forwarded \textsf{listings} option \opt{stringstyle} overrides the string and character
+style for one quote or through \cs{leanquotesetup}:
+\begin{latexsrc}
+\leanquotesetup{stringstyle=\color{brown}}
+\leanquote[stringstyle={}]{Tiles} % plain strings and characters
 \end{latexsrc}
 
 \paragraph{Unicode and engines.} The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
@@ -449,6 +460,9 @@ authors on presenting the formal statements of machine-checked results to human 
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
+\item[Unreleased] Fix escaped-name lookup and proof scanning, multiline imports, and
+  failed-build export verification. Correct Unicode ordering and scope; recognize Lean
+  literal forms and identifier boundaries in listings, color strings, and expand core vocabulary.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.

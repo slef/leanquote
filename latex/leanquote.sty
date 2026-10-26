@@ -1339,6 +1339,9 @@
 \ExplSyntaxOff
 % ---------------------------------------------------------------- listings style
 \lst@Key{leanquotelex}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquotelex}
+\lst@AddToHook{SetLanguage}{%
+  \let\lst@ifleanquotelex\iffalse
+  \let\lst@ifleanquoteunicode\iffalse}
 \lstdefinelanguage{leanquote-lean}{
   % 1: keywords and commands
   morekeywords={def,theorem,lemma,abbrev,structure,inductive,instance,class,where,fun,
@@ -1346,26 +1349,32 @@
     variable,open,import,noncomputable,private,protected,example,axiom,deriving,calc,
     universe,mutual,opaque,partial,unsafe,nonrec,extends,attribute,set_option,notation,
     infix,infixl,infixr,prefix,postfix,macro,syntax,module,public,meta,termination_by,
-    decreasing_by,at,only,using},
+    decreasing_by,at,only,using,forall,for,unless,while,try,catch,finally,mut,local,
+    export,include,omit,scoped,prelude,nomatch,initialize,builtin_initialize,
+    elab,elab_rules,macro_rules,declare_syntax_cat},
   % 2: sorts and common types of core Lean and Mathlib (add your own with morekeywords=[2]{...})
   morekeywords=[2]{Prop,Type,Sort,True,False,Nat,Int,Rat,Real,Complex,Bool,Fin,Set,Finset,
     Multiset,List,Array,Option,Prod,Sum,Sigma,Subtype,Unit,PUnit,Empty,String,Char,Function,
     Equiv,Matrix,Polynomial,MvPolynomial,PowerSeries,ZMod,Ideal,Submodule,Subgroup,Finsupp,
     EuclideanSpace,ENNReal,NNReal,EReal,ENat,PNat,Filter,Measure,SimpleGraph,Group,Ring,
     Field,Module,Algebra,TopologicalSpace,MetricSpace,Decidable,DecidableEq,Inhabited,
-    Nonempty,Fintype,Finite,Countable,Exists,And,Or,Not,Eq,Ne,Iff},
+    Nonempty,Fintype,Finite,Countable,Exists,And,Or,Not,Eq,Ne,Iff,IO,EIO,BaseIO,
+    Except,StateM,ReaderM,Id,UInt8,UInt16,UInt32,UInt64,USize,Float,ByteArray},
   % 3: common tactics (visible when proofs are shown)
   morekeywords=[3]{rfl,simp,simpa,exact,intro,intros,apply,refine,rw,rewrite,constructor,
     cases,rcases,obtain,induction,omega,decide,norm_num,linarith,nlinarith,positivity,aesop,
     ring,ring_nf,field_simp,use,unfold,contradiction,exfalso,specialize,trivial,
     assumption,subst,ext,funext,congr,gcongr,tauto,push_neg,by_contra,by_cases,
-    native_decide,all_goals,any_goals,show_term,infer_instance},
+    native_decide,all_goals,any_goals,show_term,infer_instance,simp_all,simp?,simpa?,
+    exact?,apply?,first,repeat,repeat',next,case,rename_i,revert,generalize,
+    clear,contrapose,fail_if_success},
   % 4: sorry, in red
   morekeywords=[4]{sorry,admit},
-  sensitive=true, leanquotelex}
+  sensitive=true, alsoletter={'!?}, leanquotelex}
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
 \definecolor{leanquotetactic}{RGB}{136,84,150}
+\definecolor{leanquotestring}{RGB}{153,77,0}
 % A word right after a dot is part of a qualified name (Mathlib.MeasureTheory.Measure, x.Set):
 % it is not colored as a keyword, type or tactic. The head of a name (Set in Set.univ) still is.
 \lst@Key{leanquotenodot}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquotenodot}
@@ -1607,11 +1616,7 @@
           { \__leanquote_render_id_p: }
           {
             \int_incr:N \l__leanquote_render_word_int
-            \bool_if:nT
-              { \int_compare_p:n { \l__leanquote_render_cp_int > 127 } ||
-                \int_compare_p:n { \l__leanquote_render_cp_int = 39 } ||
-                \int_compare_p:n { \l__leanquote_render_cp_int = 33 } ||
-                \int_compare_p:n { \l__leanquote_render_cp_int = 63 } }
+            \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
               { \bool_set_true:N \l__leanquote_render_exotic_bool }
           }
           {
@@ -1751,7 +1756,7 @@
       % Punctuation may straddle lexical classes (:= followed by a quote,
       % or a comment opener); emit it one character at a time.
       \cs_set_protected:Npn \lst@ProcessOther ##1
-        { \lst@XPrintToken \lst@whitespacefalse \lst@AppendOther ##1 \lst@XPrintToken }
+        { \lst@XPrintToken \lst@whitespacefalse \lst@AppendOther ##1 \lst@OutputOther }
     \fi
   }
 \lst@AddToHook { Init } { \__leanquote_render_init: }
@@ -1813,6 +1818,7 @@
   keepspaces=true, showstringspaces=false, extendedchars=false, upquote=true,
   keywordstyle=\bfseries\color{leanquotekeyword}, keywordstyle=[2]\color{leanquotetype},
   keywordstyle=[3]\color{leanquotetactic}, keywordstyle=[4]\bfseries\color{red!75!black},
+  stringstyle=\color{leanquotestring},
   commentstyle=\itshape\color{black!60},
   breaklines=true, breakatwhitespace=true, postbreak=\mbox{\hspace{1em}}}
         \tl_if_empty:NF \l__leanquote_literate_tl
