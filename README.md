@@ -1,7 +1,7 @@
 # leanquote
 
-Typeset Lean declarations in a LaTeX paper **by name**, copied verbatim from the Lean file that
-Lean actually compiled.
+Typeset Lean declarations in a LaTeX paper **by name**, read directly from the Lean source
+at LaTeX compile time.
 
 ```latex
 \usepackage{leanquote}
@@ -44,6 +44,10 @@ quotes, and `\leanquote[options]{names}` quotes declarations from the selected f
 Setup works in the preamble and follows normal TeX group scope. A per-call `file=...`
 selects a file without changing the default, and works without preceding setup.
 A file must be supplied by one of these methods.
+With `project=../lean/`, `.lean` paths are relative to that directory; include its trailing
+slash. Without `project`, paths are relative to the LaTeX working directory. Explicit
+`.leanquote` paths and the `olean`, `source`, and `logo` options are used as supplied,
+without a `project` prefix.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
 in the same listing. `\leanquote[imports]{}` quotes only that block: the `module` and
@@ -52,11 +56,8 @@ It defaults to false; bare `imports` means `imports=true`. An enabled setup defa
 be overridden with `imports=false` for one quote. Names such as `import` and `imports`
 remain ordinary declaration lookups.
 
-Version 0.18 removes `\leanquotefile`, `\leanquoteimports`, and the `:imports` selector;
-use `\leanquotesetup{file=...}` and the `imports` option instead. The former `\leanfile`
-and `\leanfilequote{file}{names}` commands were removed in v0.16. There are no compatibility aliases.
-
-No step on the Lean side beyond your usual `lake build`:
+No step on the Lean side beyond your usual `lake build`; LaTeX does not run Lean or require
+shell escape:
 
 - **Finding a declaration.** It starts at its `def`/`theorem`/`abbrev`/... line in column 0
   (with any attribute lines, and the doc comment if `doc` is set), and continues while lines are
@@ -66,8 +67,8 @@ No step on the Lean side beyond your usual `lake build`:
   must be the full name or a dotted suffix of it, including escaped components such as
   `«A B».foo`. Nested comments and strings are skipped when
   finding declarations, and namespace/section scope is tracked. An unknown name is an error,
-  an ambiguous short name a warning.
-- **What has Lean checked?** With `project` set, quotes get a red mark in the corner of their box
+  an ambiguous short name a warning, with the first match used.
+- **What has Lean checked?** Quotes get a red mark in the corner of their box
   (and a warning in the log) when they are not known to be fully checked:
   - **UNVERIFIED**: the `.lean` file is newer than its compiled `.olean`, or its last `lake build`
     failed; an export's source/build is stale or its verification metadata is missing;
@@ -83,14 +84,14 @@ No step on the Lean side beyond your usual `lake build`:
   Without an export, a `sorry` in an imported file is not seen.
   `verify=false` disables verification marks and axiom/build checks.
 
-All declarations named in one `\leanquote` go into one listing.
-
 ### Publishing: arXiv, CI, Overleaf
 
-arXiv, CI builds and online editors compile the LaTeX themselves, usually without building Lean.
-Include the `.lean` files and `leanquote.sty` in the upload; with the default `verify=auto`
-there is no `.olean` there, so nothing is marked. Do the check where Lean is built: run
-`lake build`, compile the paper locally, check that no quote is marked UNVERIFIED, then upload.
+ArXiv.org, CI builds and online editors compile the LaTeX themselves, usually without building Lean.
+Include the `.lean` files and `leanquote.sty` in the upload. Without compiled files or exports,
+the default `verify=auto` does not mark quotes UNVERIFIED. Do the check where Lean is built:
+run `lake build`, compile the paper locally, check for leanquote warnings and UNVERIFIED marks,
+then upload. If CI builds Lean, use `verify=true` there to catch missing compiled files too.
+Portable exports can still report USES SORRY or EXTRA AXIOMS without a local Lean build.
 
 ### Optional: exact boundaries and axioms with `leanquote-export`
 
@@ -107,14 +108,22 @@ automatically and uses Lean's exact declaration ranges, and the axioms each decl
 on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the paper.
 The exporter asks Lake for the actual source and compiled-file paths, including custom source
 directories. It records the build fingerprint as well as the source text.
-If `Abstract.lean` is edited after the export, LaTeX warns and falls back to reading the
-`.lean` file directly, so the paper always shows the current code. An export placed next to the
-`.lean` file (`Abstract.leanquote`) is also found, and an export can be given explicitly as
+If `Abstract.lean` is edited after the export, LaTeX warns and reads the `.lean` file
+directly, so quotes of a `.lean` file show its current code. An export placed next to the
+`.lean` file (`Abstract.leanquote`) is also found. An export can be given explicitly as
 `\leanquote[file=Abstract.leanquote]{...}`. An explicit export deliberately shows its recorded
-snapshot: changed source or a different local build produces an UNVERIFIED mark. With no local
-build, `verify=auto` can use a v2 snapshot's recorded axioms; `verify=true` marks it unverified.
+snapshot. With verification enabled, changed source or a different local build produces
+an UNVERIFIED mark. With no local build, `verify=auto` can use a v2 snapshot's recorded
+axioms; `verify=true` marks it unverified.
 Older v1 exports remain readable but are marked UNVERIFIED until regenerated.
 Nothing is added to your Lean project.
+The exporter requires modules configured in a Lake `lean_lib`, with source and build
+paths inside the project. Its output directory mirrors each module's actual source path.
+
+For an explicit export, `root=../lean/` prefixes the source path recorded in the export;
+`source=../lean/Other.lean` overrides it with a complete path. Compiled artifact paths
+recorded in the export are relative to `project`, or to `root` if `project` is unset.
+These options locate files for verification; they do not change the snapshot shown.
 
 ## Options
 
@@ -130,14 +139,19 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `boxback=<color>` | `black!3` | background color of the box |
 | `boxframe=<color>` | `black!45` | border color of the box and logo outline |
-| `logo=<file>` | none | image shown in the box's top-right corner, followed by a small TM (`\leanquotelogomark`, as the [Lean trademark policy](https://lean-lang.org/trademark-policy) requires for the Lean logo; redefine it as empty for other logos). The Lean logo is not included. Put `\leanquotetrademark` (the notice "Lean and the Lean logo are trademarks of Lean FRO.") once in the paper, e.g. in the acknowledgments. |
-| `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode for pdfLaTeX |
+| `logo=<file>` | none | image in the box's top-right corner; see “Boxes and logos” below |
+| `style=<name>` | `leanquote` | listings style; the default handles common Lean Unicode on all three engines |
 | `basicstyle=<commands>` | from style | font commands for the code; overrides the selected listings style's font |
 | `project=<dir>/` | empty | root of the Lake project; `.lean` paths are relative to it |
 | `olean=<file>` | | the compiled file to compare with, if not at the standard place |
-| `verify=<mode>` | `auto` | `auto`: mark a quote UNVERIFIED if its `.lean` is newer than its `.olean`; `true`: also if there is no `.olean`; `false`: no check (old name: `check`) |
-| `root=<dir>/`, `source=<path>` | | for exports: where to find the recorded `.lean` source |
-| any other key | | passed to listings (e.g. `numbers=left`); in `\leanquotesetup` it applies to all later quotes |
+| `verify=<mode>` | `auto` | `auto`: check available source/build/export metadata; `true`: also mark missing compiled files UNVERIFIED; `false`: disable verification (old name: `check`) |
+| `root=<dir>/` | empty | prefix for an explicit export's recorded source path |
+| `source=<path>` | from export | complete source path overriding an explicit export's recorded path |
+| any other key | | passed to listings (e.g. `numbers=left`); setup settings follow the same group scope |
+
+## Lean listing format
+
+### Code font
 
 `basicstyle` is a listings option forwarded by leanquote. The default `leanquote` style
 uses `\ttfamily\small`. Include both the font family and size when overriding it:
@@ -150,6 +164,8 @@ uses `\ttfamily\small`. Include both the font family and size when overriding it
 For an explicit point size, use `\ttfamily\fontsize{9.5}{11.5}\selectfont`;
 the arguments specify font size and baseline spacing. The manual uses this setting
 to fit its long example lines.
+
+### Boxes and logos
 
 With `box=true` (the default), set the background with `boxback` and the border with
 `boxframe`. Both accept xcolor names and expressions such as `blue!3`:
@@ -164,12 +180,23 @@ affect only that quote, so no surrounding group is needed. These options apply t
 leanquote boxes; other tcolorboxes keep their own settings. `boxframe` also sets the
 logo outline color; verification badges retain their red background.
 
+Set `logo=<file>` to add an image at the top-right corner, followed by `\leanquotelogomark`,
+a small TM as required by the [Lean trademark policy](https://lean-lang.org/trademark-policy).
+The Lean logo is not included. When using it, put `\leanquotetrademark` once in the paper,
+for example in the acknowledgments. For other logos, remove the TM with
+`\renewcommand{\leanquotelogomark}{}`.
+
+### Syntax highlighting and Unicode
+
 The default style colors keywords (blue), sorts and common Lean/Mathlib types such as `Nat`,
 `Fin`, `Set`, `List`, `Finset`, `Real` (green), common tactics (purple) and `sorry` (red). A word right after a dot is not colored, so `Set`
 is green in `Set.univ` but import paths like `Mathlib.MeasureTheory.Measure.Lebesgue.Basic` stay
-plain. Add
-your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Point}}` (`[3]` for tactics);
+plain. Add your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Point}}` (`[3]` for tactics);
 the colors are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
+
+The default style typesets about a hundred of Lean's Unicode symbols as math, under
+pdfLaTeX, LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a
+monospace font that has them (LuaLaTeX, XeLaTeX).
 
 ## Texlish
 
@@ -204,11 +231,11 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
   not a substitute for running `lake build`. Without build artifacts, `verify=auto` cannot
   establish the status of a local build; use `verify=true` to mark this case.
   LaTeX never compiles Lean itself.
-- The default style typesets about a hundred of Lean's Unicode symbols as math, under pdfLaTeX,
-  LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a monospace font that
-  has them (LuaLaTeX, XeLaTeX).
 - Quotes work in figure bodies, ordinary macro arguments, and footnotes; this does not imply
   support for complete listings in moving arguments such as caption or heading text.
+
+Each listing writes a generated `<jobname>-leanquote-<n>.lean` file. These files are not
+deleted automatically; you might add `*-leanquote-*.lean` to `.gitignore`.
 
 Tested with pdfLaTeX, LuaLaTeX and XeLaTeX from TeX Live 2025, and with Lean v4.26.0,
 v4.29.1, v4.31.0 and v4.35.0 (exporter).
@@ -216,11 +243,14 @@ v4.29.1, v4.31.0 and v4.35.0 (exporter).
 ## Documentation
 
 Download the manual PDF from [GitHub releases](https://github.com/slef/leanquote/releases),
-or find it at `doc/leanquote-doc.pdf` in the CTAN archive. From a Git checkout or an
-extracted CTAN archive, `./make-ctan.sh` builds the manual from `doc/leanquote-doc.tex`
-and writes `leanquote.zip`. It requires a POSIX shell (Cygwin on Windows), pdfLaTeX,
-zip and unzip; unrelated files in `build/` are preserved.
+or find it at `doc/leanquote-doc.pdf` in the CTAN archive.
 Generated PDFs are distributed as build/release assets rather than tracked in Git.
+
+## Development and releases
+
+From a Git checkout or an extracted CTAN archive, `./make-ctan.sh` builds the manual
+from `doc/leanquote-doc.tex` and writes `leanquote.zip`. It requires a POSIX shell
+(Cygwin on Windows), pdfLaTeX, zip and unzip.
 
 From a Git checkout, run all regression tests with:
 

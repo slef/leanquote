@@ -24,6 +24,8 @@
 
 \begin{document}
 \sloppy
+\clubpenalty=10000
+\widowpenalty=10000
 \maketitle
 
 \begin{abstract}
@@ -32,8 +34,8 @@
 \cs{leanquotesetup}\verb|{file=Abstract.lean}| followed by \cs{leanquote}\verb|{main_theorem}| prints the
 declaration \texttt{main\_theorem} exactly as it appears in the Lean source, read at compile time.
 The prose stays in \LaTeX, and the code is never retyped or pasted.
-A misspelled name is an error, and the package warns when the Lean file has changed since Lean
-last compiled it.
+A misspelled name is an error. When local build artifacts are available, the package warns
+if the Lean source is newer than its compiled file.
 It needs nothing on the Lean side beyond the usual \texttt{lake build}; an optional exporter lets
 Lean itself report the exact extent of each declaration.
 It works with pdf\LaTeX, Lua\LaTeX, and Xe\LaTeX.
@@ -48,9 +50,14 @@ With \textsf{leanquote} the paper names the declarations it wants, and \LaTeX{} 
 the Lean file each time the paper is compiled.
 The package was written for papers that present a short, human-readable
 \texttt{Abstract.lean}, containing the definitions and main statements of a formalization and
-proved through a bridge to the full development, but it works with any Lean~4 file.
+proved through a bridge to the full development. Other Lean~4 files can be quoted too;
+unusual layouts need the optional exporter (Section~\ref{sec:export}).
 
 \section{Usage}
+
+Put \texttt{latex/leanquote.sty} where \LaTeX{} can find it, for example beside your
+paper's \texttt{.tex} file or in \texttt{TEXINPUTS}, then load it as follows.
+No shell escape is needed, and \LaTeX{} does not run Lean.
 
 \begin{latexsrc}
 \usepackage{leanquote}
@@ -61,11 +68,13 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \leanquote{Point, Prototile}
 \end{latexsrc}
 
+\leanquotesetup{file=TranslationTiling/Abstract.lean}
+\noindent\begin{minipage}{\linewidth}
 \noindent produces (with the file shipped in the package's \texttt{example} directory):
 
-\leanquotesetup{file=TranslationTiling/Abstract.lean}
 A prototile is a finite list of points of $\mathbb{Z}^3$:
 \leanquote{Point, Prototile}
+\end{minipage}
 
 \medskip
 \begin{description}
@@ -88,10 +97,10 @@ A prototile is a finite list of points of $\mathbb{Z}^3$:
 \leanquote[imports,file=Other.lean]{}
 \end{latexsrc}
 
-\noindent These are the two main commands. Since version~0.18,
-\verb|\leanquotesetup{file=...}| replaces \cs{leanquotefile}, and the \opt{imports}
-option replaces \cs{leanquoteimports} and the \texttt{:imports} selector.
-The removed commands have no compatibility aliases.
+With \opt{project=../lean/}, \texttt{.lean} paths are relative to that directory;
+include the trailing slash. Without \opt{project}, paths are relative to the
+\LaTeX{} working directory. Explicit \texttt{.leanquote} paths and the \opt{olean},
+\opt{source}, and \opt{logo} options are used as supplied, without a \opt{project} prefix.
 
 The import block contains the \texttt{module} and \texttt{[public|private|meta] import}
 lines at the top of the file. Comments are omitted, including comments spanning several
@@ -132,6 +141,9 @@ With the \opt{doc} option, the doc comment is included:
 \end{latexsrc}
 \leanquote[doc]{Tiles}
 
+Quotes work in figure bodies, ordinary macro arguments, and footnotes, with no guarantee
+for moving arguments such as caption or heading text.
+
 \section{Options}
 
 \begin{center}
@@ -152,7 +164,8 @@ Option & Default & Meaning \\
 \opt{project=}\meta{dir}\texttt{/} & empty & root of the Lake project \\
 \opt{olean=}\meta{file} & & compiled file to compare with, if not at the standard place \\
 \opt{verify=}\meta{mode} & \texttt{auto} & \texttt{auto}, \texttt{true} or \texttt{false}; see Section~\ref{sec:compiled} \\
-\opt{root=}, \opt{source=} & & for explicit exports: where the recorded source is \\
+\opt{root=}\meta{dir}\texttt{/} & empty & prefix for an explicit export's recorded source path \\
+\opt{source=}\meta{path} & from export & complete source path overriding an explicit export's recorded path \\
 any other key & & passed to \textsf{listings} (e.g.\ \opt{numbers=left}) \\
 \bottomrule
 \end{tabular}
@@ -160,8 +173,8 @@ any other key & & passed to \textsf{listings} (e.g.\ \opt{numbers=left}) \\
 
 Options from \cs{leanquotesetup} apply within the current group; per-call options override
 them. Listings settings (any other key) are added to the setup settings.
-Quotes work in figure bodies, macro arguments, and footnotes, with no guarantee for moving
-arguments such as caption or heading text.
+
+\section{Lean listing format}
 
 \paragraph{Code font.} \opt{basicstyle} is a \textsf{listings} option forwarded by
 \textsf{leanquote}. The default \texttt{leanquote} style uses \verb|\ttfamily\small|.
@@ -190,9 +203,37 @@ retain their red background.
 each box, followed by \cs{leanquotelogomark}, a small ``TM'' in the blue of the Lean logo.
 The Lean trademark policy (\url{https://lean-lang.org/trademark-policy}) asks that the Lean logo
 always be accompanied by a trademark symbol; for other logos, redefine
-\cs{leanquotelogomark} as empty. The Lean logo is not included in the package.
+\cs{leanquotelogomark} as empty with
+\verb|\renewcommand{\leanquotelogomark}{}|. The Lean logo is not included in the package.
 \cs{leanquotetrademark} prints the notice ``\leanquotetrademark'' Give it once in the paper,
 for example in the acknowledgments.
+
+\paragraph{Syntax highlighting.} The \texttt{leanquote} style colors four classes of words: keywords and commands
+(\texttt{def}, \texttt{theorem}, \texttt{fun}, \texttt{by}, \dots) in blue; sorts and the
+common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{Nat},
+\texttt{Fin}, \texttt{Set}, \texttt{Finset}, \texttt{List}, \texttt{Real},
+\texttt{Polynomial}, \dots) in green; common tactics (\texttt{simp}, \texttt{exact},
+\texttt{omega}, \dots) in purple; and \texttt{sorry} in red. A word directly after a dot is
+part of a qualified name and is not colored: in \texttt{Set.univ} the head \texttt{Set} is green,
+but import paths such as \texttt{Mathlib.MeasureTheory.Measure.Lebesgue.Basic} and fields such as
+\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colors are
+\texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
+redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
+\opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
+document's own types:
+\begin{latexsrc}
+\leanquotesetup{morekeywords=[2]{Prototile, Point}}
+\end{latexsrc}
+
+\paragraph{Unicode and engines.} The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
+($\mathbb{N}\ \mathbb{Z}\ \mathbb{R}\ \to\ \forall\ \exists\ \sum\ \bigcup\ \le$ \dots, Greek letters, sub- and superscripts) as math, under
+pdf\LaTeX{} through listings' \opt{literate} mechanism, and under Lua\LaTeX{} and Xe\LaTeX{} by
+making these characters active inside listings. Other symbols can be added with \opt{literate}
+in a style of your own (pdf\LaTeX), or by choosing a monospace font that contains them
+(Lua\LaTeX, Xe\LaTeX).
+
+The listings language is called \texttt{leanquote-lean}, so that a document's own
+\verb|\lstdefinelanguage{Lean4}| does not interfere with it.
 
 \section{How declarations are found}
 
@@ -212,6 +253,10 @@ The declaration continues while lines are blank, indented, or start with \texttt
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
 \texttt{match} alternatives and \texttt{inductive} constructors.
+
+Without an export, the scanner recognizes this layout, not arbitrary Lean syntax extensions.
+Unlisted continuation lines in column~0 are cut short. Use an export for unusual layouts
+or declarations introduced by macros.
 
 The package writes one temporary file
 \meta{jobname}\texttt{-leanquote-}\meta{n}\texttt{.lean} per listing.
@@ -262,8 +307,8 @@ The \opt{verify} option chooses how strict to be:
 \bottomrule
 \end{tabular}
 \end{center}
-The default catches the common mistakes, editing the Lean file or breaking its build and then
-recompiling the paper, and stays silent where no compiled file is available
+The default catches the common mistakes of editing the Lean file or breaking its build and then
+recompiling the paper. With no compiled file, it writes a note to the log
 (Section~\ref{sec:publishing}). With \opt{verify=true}, those quotes are marked too:
 
 \leanquote[verify=true]{Adjacent}
@@ -282,25 +327,12 @@ Lake reports a \texttt{sorry} only in the file that contains it; the export's ax
 all dependencies. And if an imported file is broken while the quoted file is unchanged, the quoted
 file keeps its last successful \texttt{.olean}, so its quotes still show code that Lean checked,
 against the previous version of its imports.
+The compiled check relies on file modification dates; copying a project without
+preserving them can cause false warnings or hide stale code.
 
 The old option name \opt{check} is also accepted. The marks' appearance can be changed by
 redefining \cs{leanquotebadge}\verb|{label}| (in the box) and \cs{leanquotebadgetext}\verb|{label}|
 (without a box).
-
-\section{Publishing: arXiv, CI, Overleaf}\label{sec:publishing}
-
-arXiv compiles the \LaTeX{} source itself, and so do continuous-integration builds and online
-editors such as Overleaf, usually without a Lean build. There, the \texttt{.lean} files are
-read as usual (include them, and \texttt{leanquote.sty}, in the upload), but there is no
-\texttt{.olean} to compare with, so with the default \opt{verify=auto} nothing is marked: those
-builds simply cannot check. The check happens where Lean is built:
-\begin{enumerate}
-\item run \texttt{lake build}, then compile the paper locally, and make sure no quote is
-  marked \textsc{unverified} and the log has no \textsf{leanquote} warning;
-\item then upload, or push to the CI or online editor.
-\end{enumerate}
-If a CI pipeline does build Lean before the paper, set \opt{verify=true} there, so that a
-missing compiled file is noticed as well.
 
 \section{Optional: exact boundaries and axioms from Lean}\label{sec:export}
 
@@ -316,46 +348,46 @@ nothing changes in the document. The export also lists, for each declaration, th
 depends on (as \texttt{\#print axioms} reports them), which gives the \textsc{uses sorry} and
 \textsc{extra axioms} marks. The export also records the source as compiled. If the
 \texttt{.lean} file is edited afterwards, the package warns and falls back to reading the
-\texttt{.lean} file directly, so the document always shows the current code.
+\texttt{.lean} file directly, so quotes of a \texttt{.lean} file show its current code.
 The exporter runs through \texttt{lake env lean --run}; nothing is added to the Lean project.
+It requires modules configured in a Lake \texttt{lean\_lib}, with source and build paths
+inside the project. The output directory mirrors each module's actual source path.
+
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
 explicitly with \verb|\leanquote[file=Abstract.leanquote]{...}|.
-An explicitly selected export deliberately shows its recorded snapshot; changed source or a
-different local build produces a warning and an \textsc{unverified} mark. When no local build
+An explicitly selected export deliberately shows its recorded snapshot. With verification
+enabled, changed source or a different local build produces a warning and an
+\textsc{unverified} mark. When no local build
 is available, \opt{verify=auto} uses a v2 snapshot's recorded axioms; \opt{verify=true} marks
 it unverified.
+
+For an explicit export, \opt{root=../lean/} prefixes the source path recorded in the
+export; \opt{source=../lean/Other.lean} overrides it with a complete path.
+Recorded compiled artifact paths are relative to \opt{project}, or to \opt{root} if
+\opt{project} is unset. These options locate files for verification; they do not
+change the snapshot shown.
 
 The exporter resolves source and compiled paths through Lake, including custom source/build
 directories. Version~2 records the build fingerprint and prefixes every code line, so literal
 format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
 but are marked \textsc{unverified}; re-run the exporter to upgrade them.
 
-\section{Lean listing format}
+\section{Publishing: arXiv, CI, Overleaf}\label{sec:publishing}
 
-The \texttt{leanquote} style colors four classes of words: keywords and commands
-(\texttt{def}, \texttt{theorem}, \texttt{fun}, \texttt{by}, \dots) in blue; sorts and the
-common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{Nat},
-\texttt{Fin}, \texttt{Set}, \texttt{Finset}, \texttt{List}, \texttt{Real},
-\texttt{Polynomial}, \dots) in green; common tactics (\texttt{simp}, \texttt{exact},
-\texttt{omega}, \dots) in purple; and \texttt{sorry} in red. A word directly after a dot is
-part of a qualified name and is not colored: in \texttt{Set.univ} the head \texttt{Set} is green,
-but import paths such as \texttt{Mathlib.MeasureTheory.Measure.Lebesgue.Basic} and fields such as
-\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colors are
-\texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
-redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
-\opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
-document's own types:
-\begin{latexsrc}
-\leanquotesetup{morekeywords=[2]{Prototile, Point}}
-\end{latexsrc}
-
-
-The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
-($\mathbb{N}\ \mathbb{Z}\ \mathbb{R}\ \to\ \forall\ \exists\ \sum\ \bigcup\ \le$ \dots, Greek letters, sub- and superscripts) as math, under
-pdf\LaTeX{} through listings' \opt{literate} mechanism, and under Lua\LaTeX{} and Xe\LaTeX{} by
-making these characters active inside listings. Other symbols can be added with \opt{literate}
-in a style of your own (pdf\LaTeX), or by choosing a monospace font that contains them
-(Lua\LaTeX, Xe\LaTeX).
+ArXiv.org compiles the \LaTeX{} source itself, and so do continuous-integration builds and online
+editors such as Overleaf, usually without a Lean build. There, the \texttt{.lean} files are
+read as usual (include them, and \texttt{leanquote.sty}, in the upload). Without compiled
+files or exports, the default \opt{verify=auto} does not mark quotes \textsc{unverified}:
+those builds cannot check the local Lean build. Portable exports can still report
+\textsc{uses sorry} or \textsc{extra axioms} from their recorded axiom lists.
+Check where Lean is built:
+\begin{enumerate}
+\item run \texttt{lake build}, then compile the paper locally, and make sure no quote is
+  marked \textsc{unverified} and the log has no \textsf{leanquote} warning;
+\item then upload, or push to the CI or online editor.
+\end{enumerate}
+If a CI pipeline does build Lean before the paper, set \opt{verify=true} there, so that a
+missing compiled file is noticed as well.
 
 \section{Texlish}
 
@@ -368,20 +400,6 @@ syntax reads naturally:
 \end{latexsrc}
 With an optional argument, use braces: \verb|\leanquote[doc]{main_theorem}|.
 For imports only, use \verb|\leanquote[imports]{}|.
-
-\section{Limitations}
-
-\begin{itemize}
-\item Without an export, declaration boundaries follow the layout rules above; code that puts
-  continuation lines in column~0 (other than the listed keywords) is cut short.
-\item The source fallback recognizes standard namespace/section layout and declaration headers,
-  not arbitrary Lean syntax extensions. Use an export for commands introduced by macros or
-  declarations that do not follow the documented layout.
-\item The listings language is called \texttt{leanquote-lean}, so that a document's own
-  \verb|\lstdefinelanguage{Lean4}| does not interfere with it.
-\item The compiled check relies on file modification dates; copying a project without
-  preserving them can cause false warnings or hide stale code.
-\end{itemize}
 
 \section{Related tools}
 
