@@ -182,6 +182,11 @@
 \bool_new:N \l__leanquote_string_continuation_bool
 \bool_new:N \l__leanquote_literal_bool
 \bool_new:N \l__leanquote_proof_scan_bool
+% The listings renderer uses the same lexical decisions, with one class per
+% source byte (pdfTeX) or character (Unicode engines): code, string, comment, name.
+\str_new:N \l__leanquote_classes_str
+\str_new:N \l__leanquote_class_str
+\int_new:N \l__leanquote_class_start_int
 \cs_new_protected:Npn \__leanquote_lex_reset:
   {
     \int_zero:N \l__leanquote_comment_int
@@ -212,6 +217,7 @@
               { \seq_put_right:Nn \l__leanquote_context_seq {string} }
             \bool_set_false:N \l__leanquote_interpolated_bool
             \bool_set_true:N \l__leanquote_literal_bool
+            \str_set:Nn \l__leanquote_class_str {s}
             \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
           }
         {r}
@@ -222,6 +228,7 @@
                 \str_set:Ne \l__leanquote_rawend_str { " \seq_item:Nn \l__leanquote_literal_seq {2} }
                 \bool_set_false:N \l__leanquote_interpolated_bool
                 \seq_put_right:Nn \l__leanquote_context_seq {raw}
+                \str_set:Nn \l__leanquote_class_str {s}
                 \__leanquote_mask_literal:
               }
               { }
@@ -233,9 +240,10 @@
             \regex_match:nVT { \A [\s(\[\{,:=]? \Z } \l__leanquote_tail_str
               {
                 \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
-                \regex_extract_once:nVNTF { \A ' (?: [^'\\]+ | \\ . ) ' }
+                \regex_extract_once:nVNTF { \A ' (?: [^'\\] | \\ . )+ ' }
                   \l__leanquote_tail_str \l__leanquote_literal_seq
-                  { \bool_set_false:N \l__leanquote_interpolated_bool \__leanquote_mask_literal: } { }
+                  { \str_set:Nn \l__leanquote_class_str {s}
+                    \bool_set_false:N \l__leanquote_interpolated_bool \__leanquote_mask_literal: } { }
               }
           }
       }
@@ -246,6 +254,7 @@
           { \str_if_eq_p:Vn \l__leanquote_char_str {«} }
           { \str_if_eq_p:Vn \l__leanquote_pair_str {«} }
           {
+            \str_set:Nn \l__leanquote_class_str {i}
             \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
             \regex_extract_once:nVNTF { \A « .*? » } \l__leanquote_tail_str \l__leanquote_literal_seq
               {
@@ -314,15 +323,19 @@
       { \int_compare_p:nNn { \l__leanquote_comment_int } > {0} || \l__leanquote_string_bool }
     \bool_set_eq:NN \l__leanquote_string_continuation_bool \l__leanquote_string_bool
     \str_clear:N \l__leanquote_code_str
+    \str_clear:N \l__leanquote_classes_str
     \int_set:Nn \l__leanquote_length_int { \str_count:N #1 }
     \int_set:Nn \l__leanquote_scan_int {1}
     \int_while_do:nNnn { \l__leanquote_scan_int } < { \l__leanquote_length_int + 1 }
       {
+        \int_set_eq:NN \l__leanquote_class_start_int \l__leanquote_scan_int
+        \str_set:Nn \l__leanquote_class_str {k}
         \str_set:Ne \l__leanquote_char_str { \str_item:Nn #1 { \l__leanquote_scan_int } }
         \str_set:Ne \l__leanquote_pair_str
           { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_scan_int + 1 } }
         \int_compare:nNnTF { \l__leanquote_comment_int } > {0}
           {
+            \str_set:Nn \l__leanquote_class_str {c}
             \str_case:VnF \l__leanquote_pair_str
               {
                 {/-} { \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
@@ -336,10 +349,11 @@
               { \seq_get_right:NN \l__leanquote_context_seq \l__leanquote_context_str }
             \str_case:VnF \l__leanquote_context_str
               {
-                {string} { \__leanquote_lex_string: }
-                {interpolated} { \__leanquote_lex_string: }
+                {string} { \str_set:Nn \l__leanquote_class_str {s} \__leanquote_lex_string: }
+                {interpolated} { \str_set:Nn \l__leanquote_class_str {s} \__leanquote_lex_string: }
                 {identifier}
                   {
+                    \str_set:Nn \l__leanquote_class_str {i}
                     \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
                     \bool_lazy_or:nnT
                       { \str_if_eq_p:Vn \l__leanquote_char_str {»} }
@@ -354,6 +368,7 @@
                   }
                 {raw}
                   {
+                    \str_set:Nn \l__leanquote_class_str {s}
                     \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
                     \int_set:Nn \l_tmpa_int { \str_count:N \l__leanquote_rawend_str - 1 }
                     \str_set:Ne \l__leanquote_tail_str
@@ -371,9 +386,11 @@
               {
                 \str_case:VnF \l__leanquote_pair_str
                   {
-                    {/-} { \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
+                    {/-} { \str_set:Nn \l__leanquote_class_str {c}
+                           \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
                     {--}
                       {
+                        \str_set:Nn \l__leanquote_class_str {c}
                         \str_put_right:Ne \l__leanquote_code_str
                           { \prg_replicate:nn { \l__leanquote_length_int - \l__leanquote_scan_int + 1 } { \c_space_tl } }
                         \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_length_int
@@ -404,6 +421,9 @@
                   }
               }
           }
+        \str_put_right:Ne \l__leanquote_classes_str
+          { \prg_replicate:nn
+              { \l__leanquote_scan_int - \l__leanquote_class_start_int + 1 } { \l__leanquote_class_str } }
         \int_incr:N \l__leanquote_scan_int
       }
     \bool_set:Nn \l__leanquote_string_bool { ! \seq_if_empty_p:N \l__leanquote_context_seq }
@@ -1318,6 +1338,7 @@
   }}
 \ExplSyntaxOff
 % ---------------------------------------------------------------- listings style
+\lst@Key{leanquotelex}{false}[t]{\lstKV@SetIf{#1}\lst@ifleanquotelex}
 \lstdefinelanguage{leanquote-lean}{
   % 1: keywords and commands
   morekeywords={def,theorem,lemma,abbrev,structure,inductive,instance,class,where,fun,
@@ -1341,7 +1362,7 @@
     native_decide,all_goals,any_goals,show_term,infer_instance},
   % 4: sorry, in red
   morekeywords=[4]{sorry,admit},
-  sensitive=true, morecomment=[l]{--}, morecomment=[n]{/-}{-/}, morestring=[b]"}
+  sensitive=true, leanquotelex}
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
 \definecolor{leanquotetactic}{RGB}{136,84,150}
@@ -1359,6 +1380,8 @@
 % Lean's Unicode symbols, typeset as math. Under pdfLaTeX they become listings `literate`
 % replacements; under LuaLaTeX and XeLaTeX they are made active inside listings.
 \def\leanquote@table{%
+  \leanquote@pair{«}{\mbox{\guillemotleft}}%
+  \leanquote@pair{»}{\mbox{\guillemotright}}%
   \leanquote@pair{ℕ}{\mathbb{N}}%
   \leanquote@pair{ℤ}{\mathbb{Z}}%
   \leanquote@pair{ℚ}{\mathbb{Q}}%
@@ -1471,6 +1494,287 @@
   \leanquote@pair{ℓ}{\ell}%
 }
 \ExplSyntaxOn
+% Read a physical listing line before listings tokenizes it. Its lexer only
+% handles simple delimiters; Lean needs nesting, raw hash counts, character
+% literals, and escaped names. Keep listings for layout and keyword customization.
+\str_new:N \l__leanquote_render_line_str
+\str_new:N \l__leanquote_render_classes_str
+\tl_new:N \l__leanquote_render_tokens_tl
+\int_new:N \l__leanquote_render_index_int
+\int_new:N \l__leanquote_render_start_int
+\int_new:N \l__leanquote_render_cp_int
+\int_new:N \l__leanquote_render_bytes_int
+\int_new:N \l__leanquote_render_word_int
+\bool_new:N \l__leanquote_render_exotic_bool
+\bool_new:N \l__leanquote_render_file_bool
+\seq_new:N \l__leanquote_render_maps_seq
+\clist_new:N \l__leanquote_native_clist
+\cs_new:Npn \__leanquote_charcode:n #1 { `#1 }
+\cs_new_protected:Npn \__leanquote_render_decode:
+  {
+    \int_set:Nn \l__leanquote_render_cp_int
+      { \exp_args:Ne \__leanquote_charcode:n
+          { \str_item:Nn \l__leanquote_render_line_str { \l__leanquote_render_index_int } } }
+    \sys_if_engine_pdftex:T
+      {
+        \int_compare:nNnT { \l__leanquote_render_cp_int } > {191}
+          {
+            \int_compare:nNnTF { \l__leanquote_render_cp_int } < {224}
+              { \int_set:Nn \l__leanquote_render_bytes_int {1}
+                \int_sub:Nn \l__leanquote_render_cp_int {192} }
+              {
+                \int_compare:nNnTF { \l__leanquote_render_cp_int } < {240}
+                  { \int_set:Nn \l__leanquote_render_bytes_int {2}
+                    \int_sub:Nn \l__leanquote_render_cp_int {224} }
+                  { \int_set:Nn \l__leanquote_render_bytes_int {3}
+                    \int_sub:Nn \l__leanquote_render_cp_int {240} }
+              }
+            \prg_replicate:nn { \l__leanquote_render_bytes_int }
+              {
+                \int_incr:N \l__leanquote_render_index_int
+                \int_set:Nn \l__leanquote_render_cp_int
+                  { 64 * \l__leanquote_render_cp_int - 128 +
+                    \exp_args:Ne \__leanquote_charcode:n
+                      { \str_item:Nn \l__leanquote_render_line_str { \l__leanquote_render_index_int } } }
+              }
+          }
+      }
+  }
+% Lean's isIdRest: ASCII alphanumerics, _'!?, letter-like Unicode, subscripts.
+\prg_new_conditional:Npnn \__leanquote_render_id: { p , TF }
+  {
+    \bool_if:nTF
+      {
+        \int_compare_p:n {48 <= \l__leanquote_render_cp_int <= 57} ||
+        \int_compare_p:n {65 <= \l__leanquote_render_cp_int <= 90} ||
+        \int_compare_p:n {97 <= \l__leanquote_render_cp_int <= 122} ||
+        \int_compare_p:n {\l__leanquote_render_cp_int = 95} ||
+        \int_compare_p:n {\l__leanquote_render_cp_int = 39} ||
+        \int_compare_p:n {\l__leanquote_render_cp_int = 33} ||
+        \int_compare_p:n {\l__leanquote_render_cp_int = 63} ||
+        (\int_compare_p:n {192 <= \l__leanquote_render_cp_int <= 383} &&
+          !\int_compare_p:n {\l__leanquote_render_cp_int = 215} &&
+          !\int_compare_p:n {\l__leanquote_render_cp_int = 247}) ||
+        (\int_compare_p:n {945 <= \l__leanquote_render_cp_int <= 969} &&
+          !\int_compare_p:n {\l__leanquote_render_cp_int = 955}) ||
+        (\int_compare_p:n {913 <= \l__leanquote_render_cp_int <= 937} &&
+          !\int_compare_p:n {\l__leanquote_render_cp_int = 928} &&
+          !\int_compare_p:n {\l__leanquote_render_cp_int = 931}) ||
+        \int_compare_p:n {970 <= \l__leanquote_render_cp_int <= 1019} ||
+        \int_compare_p:n {7936 <= \l__leanquote_render_cp_int <= 8190} ||
+        \int_compare_p:n {8448 <= \l__leanquote_render_cp_int <= 8527} ||
+        \int_compare_p:n {119964 <= \l__leanquote_render_cp_int <= 120223} ||
+        \int_compare_p:n {8320 <= \l__leanquote_render_cp_int <= 8329} ||
+        \int_compare_p:n {8336 <= \l__leanquote_render_cp_int <= 8348} ||
+        \int_compare_p:n {7522 <= \l__leanquote_render_cp_int <= 7530} ||
+        \int_compare_p:n {\l__leanquote_render_cp_int = 11388}
+      }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+\cs_new_protected:Npn \__leanquote_render_word:
+  {
+    \str_put_right:Ne \l__leanquote_render_classes_str
+      { \prg_replicate:nn { \l__leanquote_render_word_int }
+          { \bool_if:NTF \l__leanquote_render_exotic_bool {i} {k} } }
+    \int_zero:N \l__leanquote_render_word_int
+    \bool_set_false:N \l__leanquote_render_exotic_bool
+  }
+\cs_new_protected:Npn \__leanquote_render_prepare:n #1
+  {
+    \str_set:Ne \l__leanquote_render_line_str { \tl_to_str:n {#1} }
+    \__leanquote_lex:N \l__leanquote_render_line_str
+    \str_clear:N \l__leanquote_render_classes_str
+    \int_zero:N \l__leanquote_render_word_int
+    \bool_set_false:N \l__leanquote_render_exotic_bool
+    \int_set:Nn \l__leanquote_render_index_int {1}
+    \int_while_do:nNnn { \l__leanquote_render_index_int } < { \str_count:N \l__leanquote_render_line_str + 1 }
+      {
+        \int_set_eq:NN \l__leanquote_render_start_int \l__leanquote_render_index_int
+        \__leanquote_render_decode:
+        \sys_if_engine_pdftex:F
+          {
+            \int_compare:nNnT { \l__leanquote_render_cp_int } > {127}
+              {
+                \clist_put_right:Ne \l__leanquote_native_clist { \int_use:N \l__leanquote_render_cp_int }
+                \cs_set_protected:cpe { __leanquote_native_ \int_use:N \l__leanquote_render_cp_int }
+                  { \exp_not:N \__leanquote_render_native:n { \int_use:N \l__leanquote_render_cp_int } }
+              }
+          }
+        \str_set:Ne \l__leanquote_class_str
+          { \str_item:Nn \l__leanquote_classes_str { \l__leanquote_render_start_int } }
+        \bool_lazy_and:nnTF
+          { \str_if_eq_p:Vn \l__leanquote_class_str {k} }
+          { \__leanquote_render_id_p: }
+          {
+            \int_incr:N \l__leanquote_render_word_int
+            \bool_if:nT
+              { \int_compare_p:n { \l__leanquote_render_cp_int > 127 } ||
+                \int_compare_p:n { \l__leanquote_render_cp_int = 39 } ||
+                \int_compare_p:n { \l__leanquote_render_cp_int = 33 } ||
+                \int_compare_p:n { \l__leanquote_render_cp_int = 63 } }
+              { \bool_set_true:N \l__leanquote_render_exotic_bool }
+          }
+          {
+            \__leanquote_render_word:
+            \int_compare:nNnTF { \l__leanquote_render_cp_int } = {9}
+              { \str_put_right:Ne \l__leanquote_render_classes_str
+                  { \prg_replicate:nn
+                      { \lst@tabsize - \int_mod:nn { \str_count:N \l__leanquote_render_classes_str } { \lst@tabsize } }
+                      { \l__leanquote_class_str } } }
+              { \str_put_right:NV \l__leanquote_render_classes_str \l__leanquote_class_str }
+          }
+        \int_incr:N \l__leanquote_render_index_int
+      }
+    \__leanquote_render_word:
+  }
+\cs_new_protected:Npn \__leanquote_render_style:
+  {
+    \lst@ifleanquotelex
+      \bool_if:NT \l__leanquote_render_file_bool
+        { \str_set:Ne \l__leanquote_render_classes_str
+            { \seq_item:Nn \l__leanquote_render_maps_seq { \lst@lineno } } }
+      \str_set:Ne \l__leanquote_class_str
+        { \str_item:Nn \l__leanquote_render_classes_str { \lst@column - \lst@pos + \lst@gobble + 1 } }
+      \str_case:Vn \l__leanquote_class_str
+        {
+          {s} { \cs_set_eq:NN \lst@thestyle \lst@stringstyle }
+          {c} { \cs_set_eq:NN \lst@thestyle \lst@commentstyle }
+          {i} { \cs_set_eq:NN \lst@thestyle \lst@identifierstyle }
+        }
+    \fi
+  }
+\cs_new_protected:Npn \__leanquote_render_native:n #1
+  {
+    \lst@XPrintToken
+    \lst@token \exp_after:wN { \char_generate:nn {#1} {12} }
+    \lst@length = 1 \scan_stop: \lst@XPrintToken
+  }
+\cs_new_eq:NN \__leanquote_render_bol: \lst@BOLGobble
+\cs_new_eq:NN \__leanquote_render_output: \lst@OutputToken
+\cs_new_eq:NN \__leanquote_render_inline_end: \lst@InlineGJEnd
+\cs_new_protected:Npn \__leanquote_render_inline_content:n #1
+  {
+    \__leanquote_render_prepare:n {#1}
+    \__leanquote_render_chars:
+    \cs_set_eq:NN \lst@arg \@empty
+    \lst@InsideConvert {#1} \lst@arg \lst@DeInit \egroup
+  }
+\cs_new_protected:Npn \__leanquote_render_inline:n #1
+  {
+    \use:e
+      {
+        \cs_set_protected:Npn \exp_not:N \lst@temp ##1 \exp_not:n {#1}
+          { \exp_not:N \__leanquote_render_inline_content:n {##1} }
+      }
+    \lst@temp
+  }
+\group_begin:
+\char_set_catcode_active:n {126}
+\cs_gset_protected:Npn \__leanquote_render_inline_active:n #1
+  {
+    \group_begin:
+    \char_set_lccode:nn {126} {`#1}
+    \tex_lowercase:D
+      {
+        \group_end:
+        \cs_set_protected:Npn \lst@temp ##1 ~
+          { \__leanquote_render_inline_content:n {##1} }
+      }
+    \lst@temp
+  }
+\group_end:
+\cs_new_protected:Npn \__leanquote_render_next:
+  {
+    \peek_meaning:NTF \lst@DeInit
+      { \__leanquote_render_bol: }
+      { \__leanquote_render_line:w }
+  }
+\cs_new_protected:Npn \__leanquote_render_emit:n #1
+  {
+    \sys_if_engine_pdftex:TF
+      { \__leanquote_render_bol: #1 }
+      {
+        \tl_clear:N \l__leanquote_render_tokens_tl
+        \tl_analysis_map_inline:nn {#1}
+          {
+            \int_compare:nNnTF {##2} > {127}
+              {
+                \cs_if_exist:cTF { __leanquote_u_ \int_eval:n {##2} }
+                  { \tl_put_right:Ne \l__leanquote_render_tokens_tl
+                      { \exp_not:c { __leanquote_u_ \int_eval:n {##2} } } }
+                  { \tl_put_right:Ne \l__leanquote_render_tokens_tl
+                      { \exp_not:N \__leanquote_render_native:n {##2} } }
+              }
+              { \tl_put_right:Ne \l__leanquote_render_tokens_tl {##1} }
+          }
+        \exp_after:wN \__leanquote_render_bol: \l__leanquote_render_tokens_tl
+      }
+  }
+\use:e
+  {
+    \cs_new_protected:Npn \exp_not:N \__leanquote_render_line:w #1 \char_generate:nn {13} {13}
+      {
+        \exp_not:N \__leanquote_render_prepare:n {#1}
+        \exp_not:N \__leanquote_render_emit:n {#1} \char_generate:nn {13} {13}
+      }
+  }
+\cs_new_protected:Npn \__leanquote_render_init:
+  {
+    \lst@ifleanquotelex
+      \__leanquote_lex_reset:
+      \clist_clear:N \l__leanquote_native_clist
+      \bool_set_false:N \l__leanquote_render_file_bool
+      \str_clear:N \l__leanquote_render_classes_str
+      \tl_if_empty:oTF { \lst@intname }
+        { \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_next: }
+        {
+          \bool_set_true:N \l__leanquote_render_file_bool
+          \seq_clear:N \l__leanquote_render_maps_seq
+          \ior_open:Nn \g__leanquote_ior { \lst@intname }
+          \ior_str_map_inline:Nn \g__leanquote_ior
+            {
+              \__leanquote_render_prepare:n {##1}
+              \seq_put_right:NV \l__leanquote_render_maps_seq \l__leanquote_render_classes_str
+            }
+          \ior_close:N \g__leanquote_ior
+        }
+      \lst@ifdisplaystyle \else
+        \cs_set_protected:Npn \lst@InlineJ ##1 { \__leanquote_render_inline:n {##1} }
+        \cs_set_protected:Npn \lst@InlineM ##1
+          { \__leanquote_render_inline_active:n {##1} }
+        \cs_set_protected:Npn \lst@InlineGJEnd
+          { \exp_args:NV \__leanquote_render_prepare:n \lst@arg
+            \__leanquote_render_inline_end: }
+      \fi
+      \cs_set_protected:Npn \lst@OutputToken
+        { \__leanquote_render_style: \__leanquote_render_output: }
+      % Punctuation may straddle lexical classes (:= followed by a quote,
+      % or a comment opener); emit it one character at a time.
+      \cs_set_protected:Npn \lst@ProcessOther ##1
+        { \lst@XPrintToken \lst@whitespacefalse \lst@AppendOther ##1 \lst@XPrintToken }
+    \fi
+  }
+\lst@AddToHook { Init } { \__leanquote_render_init: }
+\cs_new_protected:Npn \__leanquote_render_chars:
+  {
+    \lst@ifleanquotelex
+      \clist_map_inline:Nn \l__leanquote_native_clist
+        {
+          \cs_if_exist:cTF { __leanquote_u_##1 }
+            {
+              \lst@ifleanquoteunicode \else
+                \char_set_active_eq:nc {##1} { __leanquote_native_##1 }
+                \char_set_catcode_active:n {##1}
+              \fi
+            }
+            {
+              \char_set_active_eq:nc {##1} { __leanquote_native_##1 }
+              \char_set_catcode_active:n {##1}
+            }
+        }
+    \fi
+  }
+\lst@AddToHook { SelectCharTable } { \__leanquote_render_chars: }
 \tl_new:N \l__leanquote_literate_tl
 \clist_new:N \g__leanquote_unicode_clist
 \bool_lazy_or:nnTF { \sys_if_engine_luatex_p: } { \sys_if_engine_xetex_p: }

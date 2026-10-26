@@ -9,13 +9,110 @@ from tex_support import ENGINE, TexTestCase
 RENDER_LOG = r"""
 \makeatletter
 \lst@AddToHook{OutputBox}{%
-  \extractcolorspec{.}\LQColor
-  \typeout{LQ-RENDER:\expandafter\detokenize\expandafter{\the\lst@token}|\LQColor}}
+  \convertcolorspec{named}{.}{rgb}\LQColor
+  \typeout{LQ-RENDER:\expandafter\detokenize\expandafter{\the\lst@token}|\LQColor|\the\lst@lineno}}
 \makeatother
 """
 
 
 class HighlightingTests(TexTestCase):
+    def render(self, code, *, body=None, options=""):
+        _, output = self.compile_tex(
+            {"Fixture.lean": code},
+            body or r"\lstinputlisting[style=leanquote," + options + r"]{Fixture.lean}",
+            preamble=RENDER_LOG,
+        )
+        return [(token.replace(r"\lst@nolig ", "").replace(r"\lst@um", "").strip(),
+                 tuple(float(v) for v in rgb.split(',')), int(line))
+                for token, rgb, line in re.findall(
+                    r"LQ-RENDER:([^\n]*?)\|([\d.,]+)\|(\d+)", output)]
+
+    def assert_paint(self, rendered, word, line, color):
+        colors = [rgb for token, rgb, number in rendered if token == word and number == line]
+        self.assertTrue(colors, (word, line, rendered))
+        for actual in colors:
+            for component, expected in zip(actual, color):
+                self.assertAlmostEqual(component, expected, delta=0.0001)
+
+    def test_raw_strings_and_hash_counts_keep_comment_text_literal(self):
+        rendered = self.render('''def raw : String := r##"first "# sorry Nat /- --
+last"##
+def afterRaw : Nat := 1
+''', options=r"stringstyle=\color{orange}")
+        self.assert_paint(rendered, 'sorry', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'Nat', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'last', 2, (1, .5, 0))
+        self.assert_paint(rendered, 'def', 3, (41/255, 110/255, 166/255))
+
+    def test_interpolation_distinguishes_nested_strings_and_expressions(self):
+        rendered = self.render('''def text : String := s!"inner {"first sorry Nat"} tail"
+def expression : String := s!"value {Nat.succ 1}"
+def nested : String := s!"outer {s!"inner {Nat.succ 1}"} tail"
+''', options=r"stringstyle=\color{orange}")
+        self.assert_paint(rendered, 'sorry', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'Nat', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'Nat', 2, (38/255, 128/255, 89/255))
+        self.assert_paint(rendered, 'Nat', 3, (38/255, 128/255, 89/255))
+
+    def test_character_literals_do_not_change_following_declarations(self):
+        rendered = self.render("def quote : Char := '\"'\ndef afterCharacter : Nat := 1\n",
+                               options=r"stringstyle=\color{orange}")
+        self.assert_paint(rendered, '"', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'def', 2, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'Nat', 2, (38/255, 128/255, 89/255))
+
+    def test_escaped_names_protect_keywords_and_comment_delimiters(self):
+        rendered = self.render('''def «theorem» : Nat := 1
+def «sorry Nat» : Nat := 2
+def «x/-y» : Nat := 3
+def afterName : Nat := 4
+def «first
+sorry /- Nat
+last» : Nat := 5
+def afterMultiline : Nat := 6
+''')
+        self.assert_paint(rendered, 'theorem', 1, (0, 0, 0))
+        self.assert_paint(rendered, 'sorry', 2, (0, 0, 0))
+        self.assert_paint(rendered, 'def', 4, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'sorry', 6, (0, 0, 0))
+        self.assert_paint(rendered, 'def', 8, (41/255, 110/255, 166/255))
+
+    def test_identifier_boundaries_include_apostrophes_and_unicode(self):
+        rendered = self.render("def theorem' := 1\ndef αNat := 2\ndef Natα := 3\ndef Nat₁ := 4\n")
+        self.assert_paint(rendered, 'theorem', 1, (0, 0, 0))
+        for line in (2, 3, 4):
+            self.assert_paint(rendered, 'Nat', line, (0, 0, 0))
+
+    def test_nested_comments_and_ordinary_escaped_strings(self):
+        rendered = self.render(r'''/- outer /- sorry -/ Nat -/
+def text := "escaped \" sorry Nat \\ /- --"
+def after : Nat := 1
+''', options=r"stringstyle=\color{orange}")
+        self.assert_paint(rendered, 'sorry', 1, (.4, .4, .4))
+        self.assert_paint(rendered, 'Nat', 1, (.4, .4, .4))
+        self.assert_paint(rendered, 'sorry', 2, (1, .5, 0))
+        self.assert_paint(rendered, 'Nat', 2, (1, .5, 0))
+        self.assert_paint(rendered, 'def', 3, (41/255, 110/255, 166/255))
+
+    def test_listing_environment_uses_same_lexer(self):
+        rendered = self.render('', body=r'''
+\begin{lstlisting}[style=leanquote,stringstyle=\color{orange}]
+def text : String := r#"first " sorry /- " last"#
+def after : Nat := 1
+\end{lstlisting}
+''')
+        self.assert_paint(rendered, 'sorry', 1, (1, .5, 0))
+        self.assert_paint(rendered, 'def', 2, (41/255, 110/255, 166/255))
+
+    def test_inline_listings_use_same_lexer(self):
+        for body in [
+            r'\lstinline[style=leanquote,stringstyle=\color{orange}]!r#"first " sorry /- " last"#!',
+            r'\lstinline[style=leanquote,stringstyle=\color{orange}]{r#"first " sorry /- " last"#}',
+        ]:
+            with self.subTest(body=body):
+                rendered = self.render('', body=body)
+                self.assert_paint(rendered, 'sorry', 1, (1, .5, 0))
+
     def test_unicode_replacements_follow_buffered_ascii(self):
         _, output = self.compile_tex(
             {"A.lean": "def Natα : Nat := 1\ndef Nat₁ : Nat := 2\n"},
