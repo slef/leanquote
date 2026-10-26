@@ -172,14 +172,14 @@ For an explicit point size, use \verb|\ttfamily\fontsize{9.5}{11.5}\selectfont|;
 the arguments specify font size and baseline spacing. This manual uses that setting
 to fit its long example lines.
 
-\paragraph{Box colours.} With \opt{box=true} (the default), set the background with
+\paragraph{Box colors.} With \opt{box=true} (the default), set the background with
 \opt{colback} and the border with \opt{colframe} through
 \href{https://ctan.org/pkg/tcolorbox}{\textsf{tcolorbox}}:
 \begin{latexsrc}
 \tcbset{extras={colback=blue!3,colframe=blue!50}}
 \end{latexsrc}
 The defaults are \opt{colback=black!3} and \opt{colframe=black!45}.
-The \opt{extras} wrapper applies the colours after \textsf{leanquote}'s presets,
+The \opt{extras} wrapper applies the colors after \textsf{leanquote}'s presets,
 retaining its logo and verification badges. These settings affect all tcolorboxes
 in the current \TeX\ group. To change just one quote:
 \begin{latexsrc}
@@ -328,17 +328,17 @@ directories. Version~2 records the build fingerprint and prefixes every code lin
 format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
 but are marked \textsc{unverified}; re-run the exporter to upgrade them.
 
-\section{Colours, engines and symbols}
+\section{Colors, engines and symbols}
 
-The \texttt{leanquote} style colours four classes of words: keywords and commands
+The \texttt{leanquote} style colors four classes of words: keywords and commands
 (\texttt{def}, \texttt{theorem}, \texttt{fun}, \texttt{by}, \dots) in blue; sorts and the
 common types and type classes of core Lean and Mathlib (\texttt{Prop}, \texttt{Nat},
 \texttt{Fin}, \texttt{Set}, \texttt{Finset}, \texttt{List}, \texttt{Real},
 \texttt{Polynomial}, \dots) in green; common tactics (\texttt{simp}, \texttt{exact},
 \texttt{omega}, \dots) in purple; and \texttt{sorry} in red. A word directly after a dot is
-part of a qualified name and is not coloured: in \texttt{Set.univ} the head \texttt{Set} is green,
+part of a qualified name and is not colored: in \texttt{Set.univ} the head \texttt{Set} is green,
 but import paths such as \texttt{Mathlib.MeasureTheory.Measure.Lebesgue.Basic} and fields such as
-\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colours are
+\texttt{x.Measure} stay plain (listings key \opt{leanquotenodot}, on in this style). The colors are
 \texttt{leanquotekeyword}, \texttt{leanquotetype} and \texttt{leanquotetactic}, and can be
 redefined with \cs{definecolor}. Words are added to a class with the \textsf{listings} keys
 \opt{morekeywords}, \opt{morekeywords=[2]} and \opt{morekeywords=[3]}, for example the
@@ -441,8 +441,8 @@ authors on presenting the formal statements of machine-checked results to human 
   \opt{file=} selects a file for a quote or its imports; \cs{leanfile} and
   \cs{leanfilequote} removed.
 \item[0.15 (2026-10-26)] \cs{leanquotetrademark}.
-\item[0.14] Words after a dot (import paths, qualified names) are not coloured.
-\item[0.13] Common Mathlib types, tactics and \texttt{sorry} coloured; listings
+\item[0.14] Words after a dot (import paths, qualified names) are not colored.
+\item[0.13] Common Mathlib types, tactics and \texttt{sorry} colored; listings
   settings in \cs{leanquotesetup} are kept for the whole document; \cs{leanfile} available in the
   preamble.
 \item[0.12] \opt{proof=false} hides proofs of theorems and lemmas.
