@@ -35,8 +35,9 @@ jobs:
       - name: Install TeX and packaging tools
         run: |
           sudo apt-get update
+          # Scalable EC fonts for T1 text, including the small verification badges.
           sudo apt-get install -y --no-install-recommends \
-            python3 zip unzip lmodern texlive-latex-extra texlive-fonts-recommended \
+            python3 zip unzip lmodern cm-super texlive-latex-extra texlive-fonts-recommended \
             texlive-luatex texlive-xetex
       - name: Install pinned elan and Lean
         # Official elan release binary; pin both installer bytes and toolchain.
