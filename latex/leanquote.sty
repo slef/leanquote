@@ -181,6 +181,7 @@
 \bool_new:N \l__leanquote_continuation_bool
 \bool_new:N \l__leanquote_string_continuation_bool
 \bool_new:N \l__leanquote_literal_bool
+\bool_new:N \l__leanquote_proof_scan_bool
 \cs_new_protected:Npn \__leanquote_lex_reset:
   {
     \int_zero:N \l__leanquote_comment_int
@@ -188,6 +189,7 @@
     \bool_set_false:N \l__leanquote_interpolated_bool
     \bool_set_false:N \l__leanquote_string_bool
     \bool_set_false:N \l__leanquote_escape_bool
+    \bool_set_false:N \l__leanquote_proof_scan_bool
     \str_clear:N \l__leanquote_rawend_str
   }
 \cs_new_protected:Npn \__leanquote_mask_literal:
@@ -248,11 +250,22 @@
             \regex_extract_once:nVNTF { \A « .*? » } \l__leanquote_tail_str \l__leanquote_literal_seq
               {
                 \bool_set_false:N \l__leanquote_interpolated_bool
-                \str_put_right:Ne \l__leanquote_code_str { \seq_item:Nn \l__leanquote_literal_seq {1} }
-                \int_add:Nn \l__leanquote_scan_int
-                  { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } - 1 }
+                \bool_if:NTF \l__leanquote_proof_scan_bool
+                  { \__leanquote_mask_literal: }
+                  {
+                    \str_put_right:Ne \l__leanquote_code_str { \seq_item:Nn \l__leanquote_literal_seq {1} }
+                    \int_add:Nn \l__leanquote_scan_int
+                      { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } - 1 }
+                  }
               }
-              { \__leanquote_lex_plain: }
+              {
+                % An escaped name may span lines. Its contents cannot start
+                % declarations, strings, or comments on subsequent lines.
+                \seq_put_right:Nn \l__leanquote_context_seq {identifier}
+                \str_put_right:Ne \l__leanquote_code_str
+                  { \prg_replicate:nn { \str_count:N \l__leanquote_tail_str } { \c_space_tl } }
+                \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_length_int
+              }
           }
           { \__leanquote_lex_plain: }
       }
@@ -325,6 +338,20 @@
               {
                 {string} { \__leanquote_lex_string: }
                 {interpolated} { \__leanquote_lex_string: }
+                {identifier}
+                  {
+                    \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
+                    \bool_lazy_or:nnT
+                      { \str_if_eq_p:Vn \l__leanquote_char_str {»} }
+                      { \str_if_eq_p:Vn \l__leanquote_pair_str {»} }
+                      {
+                        \int_set:Nn \l_tmpa_int { \str_count:n {»} - 1 }
+                        \str_put_right:Ne \l__leanquote_code_str
+                          { \prg_replicate:nn { \l_tmpa_int } { \c_space_tl } }
+                        \int_add:Nn \l__leanquote_scan_int { \l_tmpa_int }
+                        \seq_pop_right:NN \l__leanquote_context_seq \l__leanquote_context_str
+                      }
+                  }
                 {raw}
                   {
                     \str_put_right:Ne \l__leanquote_code_str { \c_space_tl }
@@ -410,8 +437,16 @@
     \int_zero:N \l__leanquote_pos_int
     \int_zero:N \l__leanquote_cut_int
     \int_zero:N \l__leanquote_prev_int
+    % Equation-style theorem bodies start with a top-level pattern alternative.
+    \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+      {
+        \regex_extract_once:nVNTF { \A \s* (\|) } #1 \l__leanquote_literal_seq
+          { \int_set:Nn \l__leanquote_cut_int { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } } }
+          { }
+      }
     \str_map_inline:Nn #1
       {
+        \int_compare:nNnT { \l__leanquote_cut_int } > {0} { \str_map_break: }
         \int_incr:N \l__leanquote_pos_int
         \int_case:nn { `##1 }
           {
@@ -444,6 +479,7 @@
         \bool_set_false:N \l__leanquote_cutdone_bool
         \int_zero:N \l__leanquote_depth_int
         \__leanquote_lex_reset:
+        \bool_set_true:N \l__leanquote_proof_scan_bool
         \seq_map_inline:Nn \l__leanquote_buf_seq
           {
             \bool_if:NF \l__leanquote_cutdone_bool

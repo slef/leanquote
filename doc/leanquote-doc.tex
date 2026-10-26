@@ -128,8 +128,9 @@ does not need in order to check the statement; definitions keep their bodies:
 \end{latexsrc}
 \leanquote[proof=false]{tiling_coRE_complete}
 
-\noindent The proof starts at the first \texttt{:=} outside brackets, string and character
-literals (including interpolation), line comments, and nested block comments.
+\noindent The proof starts at the first \texttt{:=} outside brackets, escaped identifiers,
+string and character literals (including interpolation), line comments, and nested block comments.
+Equation-style proofs starting with \texttt{|} on a new line are also hidden.
 Default parameter values, such as
 \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
@@ -154,7 +155,7 @@ Option & Default & Meaning \\
 \opt{file=}\meta{path} & current file & file to quote; per-call overrides leave the default unchanged \\
 \opt{doc} & false & also show each declaration's doc comment \\
 \opt{imports} & false & prepend the import block once; an empty name list quotes only imports \\
-\opt{proof} & true & with \opt{proof=false}, theorems and lemmas stop at the \texttt{:=} of their proof, shown as \texttt{:= ...} \\
+\opt{proof} & true & with \opt{proof=false}, theorem and lemma proofs (assignment or equation style) are replaced by \texttt{:= ...} \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
 \opt{boxback} & \texttt{black!3} & background color of the box \\
 \opt{boxframe} & \texttt{black!45} & border color of the box and logo outline \\

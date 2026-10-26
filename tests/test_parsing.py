@@ -164,6 +164,42 @@ MULTILINE_IMPORTS = source('''
 
 
 class ParsingTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_multiline_escaped_identifier_cannot_declare_a_phantom(self):
+        lean = 'def «first\ndef phantom : Nat := 99\nlast» : Nat := 1\n'
+        _, output = self.compile(
+            lean, r"\leanquote[olean=Fixture.olean,verify=true]{phantom}",
+            success=False, olean=True,
+        )
+        self.assertIn("not found", output)
+
+    def test_proof_hiding_ignores_escaped_identifier_punctuation(self):
+        declarations = [
+            'theorem «a:=b» : True := by trivial',
+            'theorem escapedBinder («x(» : Nat) : «x(» = «x(» := by rfl',
+            'theorem multilineName («first\n:= ( /- --\nlast» : Nat) : True := by trivial',
+        ]
+        for name, declaration in zip(['«a:=b»', 'escapedBinder', 'multilineName'], declarations):
+            with self.subTest(name=name):
+                expected = declaration.rsplit(' := by', 1)[0] + ' := ...'
+                snippets, _ = self.compile(declaration + '\n',
+                    r"\leanquote[proof=false]{" + name + "}")
+                self.assertEqual(snippets, [expected])
+                exported = ('@@leanquote-export 1\n@@begin ' + name + '\n@@axioms\n' +
+                            declaration + '\n@@end\n')
+                snippets, _ = self.compile('',
+                    r"\leanquote[file=Saved.leanquote,proof=false]{" + name + "}", export=exported)
+                self.assertEqual(snippets, [expected])
+
+    def test_equation_theorem_proofs_are_hidden(self):
+        declaration = 'theorem equation : (n : Nat) → n = n\n  | _ => rfl\n'
+        expected = declaration.split('\n')[0] + '\n := ...'
+        snippets, _ = self.compile(declaration, r"\leanquote[proof=false]{equation}")
+        self.assertEqual(snippets, [expected])
+        exported = '@@leanquote-export 1\n@@begin equation\n@@axioms\n' + declaration + '@@end\n'
+        snippets, _ = self.compile('', r"\leanquote[file=Saved.leanquote,proof=false]{equation}", export=exported)
+        self.assertEqual(snippets, [expected])
+
     def check_lean(self, work, filename, *, olean=False):
         command = ["lean"]
         if olean:
