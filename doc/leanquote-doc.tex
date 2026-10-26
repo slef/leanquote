@@ -20,7 +20,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.18, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.19, 2026-10-26\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -460,9 +460,11 @@ authors on presenting the formal statements of machine-checked results to human 
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
-\item[Unreleased] Fix escaped-name lookup and proof scanning, multiline imports, and
-  failed-build export verification. Correct Unicode ordering and scope; recognize Lean
-  literal forms and identifier boundaries in listings, color strings, and expand core vocabulary.
+\item[0.19 (2026-10-26)] Recognize raw and interpolated strings, character literals,
+  escaped identifiers, and identifier boundaries in listings. Configurable brown literal
+  color and expanded core vocabulary. Fix Unicode ordering and scope, escaped-name lookup,
+  proof hiding (including equation-style proofs), multiline imports, and export verification
+  after failed builds; normalize exported names.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.
