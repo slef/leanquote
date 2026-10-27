@@ -1654,17 +1654,22 @@
 \seq_new:N \l__leanquote_current_seq
 \seq_new:N \l__leanquote_metadata_seq
 \str_new:N \l__leanquote_srcpath_str
+\str_new:N \l__leanquote_recorded_source_str
 \str_new:N \l__leanquote_recorded_olean_str
 \str_new:N \l__leanquote_recorded_trace_str
 \str_new:N \l__leanquote_export_version_str
 \str_new:N \l__leanquote_trace_contents_str
 \bool_new:N \l__leanquote_fresh_bool
+\bool_new:N \l__leanquote_export_source_bool
 \bool_new:N \l__leanquote_export_axioms_bool
 \str_new:N \l__leanquote_export_str
 \bool_new:N \l__leanquote_useexport_bool
 \msg_new:nnn { leanquote } { export-build }
   { Export~#1~does~not~match~the~current~compiled~build~or~lacks~build~provenance~
     (the~quote~is~marked~UNVERIFIED).~Rebuild~and~run~leanquote-export. }
+\msg_new:nnn { leanquote } { export-source }
+  { Export~#1~does~not~identify~#2~as~its~source.~Reading~#2~directly~and~ignoring~
+    the~export's~compiled~artifact;~re-run~leanquote-export. }
 \msg_new:nnn { leanquote } { export-axioms }
   { Export~#1~has~no~axiom~information~for~#2~
     (the~quote~is~marked~UNVERIFIED).~Run~leanquote-export. }
@@ -1678,6 +1683,7 @@
   {
     \seq_clear:N \l__leanquote_stored_seq
     \str_clear:N \l__leanquote_srcpath_str
+    \str_clear:N \l__leanquote_recorded_source_str
     \str_clear:N \l__leanquote_recorded_olean_str
     \str_clear:N \l__leanquote_recorded_trace_str
     \str_clear:N \l__leanquote_export_version_str
@@ -1690,7 +1696,10 @@
         \regex_match:nnT { \A @@src (\x{20} | \Z) } {##1}
           { \seq_put_right:Ne \l__leanquote_stored_seq { \str_range:nnn {##1} {7} {-1} } }
         \regex_match:nnT { \A @@source\x{20} } {##1}
-          { \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \str_range:nnn {##1} {10} {-1} } }
+          {
+            \str_set:Ne \l__leanquote_recorded_source_str { \str_range:nnn {##1} {10} {-1} }
+            \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \l__leanquote_recorded_source_str }
+          }
         \regex_match:nnT { \A @@olean\x{20} } {##1}
           { \str_set:Ne \l__leanquote_recorded_olean_str { \str_range:nnn {##1} {9} {-1} } }
         \regex_match:nnT { \A @@trace\x{20} } {##1}
@@ -1715,6 +1724,44 @@
       { \tl_if_eq_p:NN \l__leanquote_stored_seq \l__leanquote_current_seq }
   }
 \cs_generate_variant:Nn \__leanquote_compare_source:n { V }
+
+% Resolve TeX's search path and normalize dot components for source identity.
+% Do not infer identity from equal contents: unrelated modules can share text.
+\seq_new:N \l__leanquote_path_parts_seq
+\seq_new:N \l__leanquote_path_normal_seq
+\str_new:N \l__leanquote_expected_source_str
+\str_new:N \l__leanquote_actual_source_str
+\cs_new_protected:Npn \__leanquote_normalize_path:nN #1#2
+  {
+    \str_set:Ne #2 { \file_full_name:n {#1} }
+    \seq_set_split:NnV \l__leanquote_path_parts_seq {/} #2
+    \seq_clear:N \l__leanquote_path_normal_seq
+    \seq_map_indexed_inline:Nn \l__leanquote_path_parts_seq
+      {
+        \str_case:nnF {##2}
+          {
+            {.} {}
+            {} { \int_compare:nNnT {##1} = {1}
+                   { \seq_put_right:Nn \l__leanquote_path_normal_seq {} } }
+            {..}
+              {
+                \seq_if_empty:NTF \l__leanquote_path_normal_seq
+                  { \seq_put_right:Nn \l__leanquote_path_normal_seq {..} }
+                  {
+                    \seq_get_right:NN \l__leanquote_path_normal_seq \l_tmpa_tl
+                    \str_case:VnF \l_tmpa_tl
+                      {
+                        {..} { \seq_put_right:Nn \l__leanquote_path_normal_seq {..} }
+                        {} {}
+                      }
+                      { \seq_pop_right:NN \l__leanquote_path_normal_seq \l_tmpa_tl }
+                  }
+              }
+          }
+          { \seq_put_right:Nn \l__leanquote_path_normal_seq {##2} }
+      }
+    \str_set:Ne #2 { \seq_use:Nn \l__leanquote_path_normal_seq {/} }
+  }
 
 % A v2 export records the actual Lake artifact, including custom source/build layouts.
 \cs_new_protected:Npn \__leanquote_export_olean:
@@ -1812,10 +1859,25 @@
 \cs_new_protected:Npn \__leanquote_export_fresh:nn #1#2
   {
     \__leanquote_load_export:n {#1}
-    \__leanquote_compare_source:n {#2}
-    \bool_if:NTF \l__leanquote_fresh_bool
-      { \msg_info:nnnn { leanquote } { using-export } {#2} {#1} }
-      { \msg_warning:nnnn { leanquote } { stale-fallback } {#2} {#1} }
+    \bool_set_false:N \l__leanquote_export_source_bool
+    \bool_set_false:N \l__leanquote_fresh_bool
+    \str_if_empty:NF \l__leanquote_recorded_source_str
+      {
+        \__leanquote_normalize_path:nN
+          { \l_leanquote_project_tl \l__leanquote_recorded_source_str } \l__leanquote_expected_source_str
+        \__leanquote_normalize_path:nN {#2} \l__leanquote_actual_source_str
+        \bool_set:Nn \l__leanquote_export_source_bool
+          { ! \str_if_empty_p:N \l__leanquote_expected_source_str &&
+            \str_if_eq_p:NN \l__leanquote_expected_source_str \l__leanquote_actual_source_str }
+      }
+    \bool_if:NTF \l__leanquote_export_source_bool
+      {
+        \__leanquote_compare_source:n {#2}
+        \bool_if:NTF \l__leanquote_fresh_bool
+          { \msg_info:nnnn { leanquote } { using-export } {#2} {#1} }
+          { \msg_warning:nnnn { leanquote } { stale-fallback } {#2} {#1} }
+      }
+      { \msg_warning:nnnn { leanquote } { export-source } {#1} {#2} }
   }
 \cs_generate_variant:Nn \__leanquote_export_fresh:nn { VV }
 \cs_generate_variant:Nn \__leanquote_from_export:n { V }
@@ -1854,7 +1916,7 @@
           {
             \__leanquote_export_fresh:VV \l__leanquote_export_str \l__leanquote_file_str
             \bool_set_eq:NN \l__leanquote_useexport_bool \l__leanquote_fresh_bool
-            \__leanquote_export_olean:
+            \bool_if:NT \l__leanquote_export_source_bool { \__leanquote_export_olean: }
           }
       }
     \bool_lazy_and:nnT

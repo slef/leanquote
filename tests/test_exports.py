@@ -5,6 +5,48 @@ from tex_support import TexTestCase
 
 
 class ExportTests(TexTestCase):
+    def test_unrelated_sidecar_cannot_supply_fallback_artifact(self):
+        bad = "theorem bad : False := by no_such_tactic\n"
+        good = "def value : Nat := 1\n"
+        for snapshot in [good, bad]:
+            with self.subTest(matching_snapshot=snapshot == bad):
+                files = {
+                    "A.lean": good, "B.lean": bad,
+                    "A.olean": "compiled", "A.trace": '{"depHash": "build-a"}',
+                    ".lake/build/lib/lean/B.trace": "failed build",
+                    "B.leanquote": make_export(snapshot, source_path="A.lean", olean="A.olean"),
+                }
+                snippets, output = self.compile_tex(
+                    files, r"\leanquote[file=B.lean,verify=true,proof=false]{bad}",
+                )
+                self.assertEqual(snippets, ["theorem bad : False := ..."])
+                self.assertIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+                self.assertIn("does not identify B.lean", " ".join(output.split()))
+                self.assertIn("last lake build of B.lean failed", " ".join(output.split()))
+
+    def test_missing_source_identity_cannot_supply_fallback_artifact(self):
+        files = export_files()
+        files["A.leanquote"] = files["A.leanquote"].replace("@@source A.lean\n", "")
+        _, output = self.compile_tex(files, r"\leanquote[file=A.lean,verify=true]{value}")
+        self.assertIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+
+    def test_stale_same_source_keeps_custom_artifact_path(self):
+        current = "def value : Nat := 2\n"
+        files = {
+            "project/src/A.lean": current,
+            "project/.lake/build/leanquote/src/A.leanquote": make_export(
+                "def value : Nat := 1\n", source_path="src/./A.lean", olean="out/lib/A.olean",
+            ),
+            "project/out/lib/A.olean": "compiled",
+            "project/out/lib/A.trace": '{"depHash": "build-a"}',
+        }
+        snippets, output = self.compile_tex(
+            files, r"\leanquote[project=project/,file=src/A.lean,verify=true]{value}",
+        )
+        self.assertEqual(snippets, [current.strip()])
+        self.assertIn("Reading project/src/A.lean directly", " ".join(output.split()))
+        self.assertNotIn("LEANQUOTE-BADGE:", output)
+
     def test_explicit_export_with_missing_artifact_and_trace_is_unverified(self):
         files = export_files(axioms="sorryAx")
         del files["A.olean"]
