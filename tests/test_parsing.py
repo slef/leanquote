@@ -566,6 +566,32 @@ class ParsingTests(unittest.TestCase):
             "      let mut p := False\n      try\n        return True\n"
             "      catch\n      | _ => p := True\n      return p\n"
             "    result.toOption.getD False := by change True; trivial",
+            "theorem monadicLet : Id.run do\n    let p ← pure True\n"
+            "    return p := by trivial",
+            "theorem monadicLetMultiline : Id.run do\n    let p ← pure True\n"
+            "    return p\n := by trivial",
+            "theorem asciiMonadicLet : Id.run do\n    let p <- pure True\n"
+            "    return p := by trivial",
+            "theorem patternLet : Id.run do\n    let some p ← pure (some True) | return False\n"
+            "    return p := by trivial",
+            "theorem ifLet : Id.run do\n    let mut p := False\n"
+            "    if let some _ := some 0 then return True else p := True\n"
+            "    return p\n := by change True; trivial",
+            "theorem ifLetMultiline : Id.run do\n    let mut p := False\n"
+            "    if let some _ := some 0 then\n      return True\n    else\n"
+            "      p := True\n    return p\n := by change True; trivial",
+            "theorem ifLetPure :\n    if let some _ := some 0 then True else False := by trivial",
+            "theorem nestedIfLet : Id.run do\n    let mut p := False\n"
+            "    if let some _ := some 0 then\n"
+            "      if let some _ := some 1 then return True else p := True\n"
+            "    else p := False\n    return p\n := by change True; trivial",
+            "theorem conditionalReturn : Id.run do\n    let mut p := False\n"
+            "    if let some _ := some 0 then\n"
+            "      return if let some _ := some 1 then True else False\n"
+            "    else p := True\n    return p\n := by change True; trivial",
+            "theorem conditionalBinding : Id.run do\n    let mut p := False\n"
+            "    if let some _ := some 0 then let q := True; return q else p := True\n"
+            "    return p\n := by change True; trivial",
         ]
         # Each source quote scans the file. Keep both the source and quote count
         # bounded per process as this regression collection grows; retain the

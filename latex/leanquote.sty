@@ -675,6 +675,7 @@
 \bool_new:N \l__leanquote_proof_do_bool
 \cs_generate_variant:Nn \tl_item:nn { Vn }
 \cs_generate_variant:Nn \tl_head:n { V }
+\cs_generate_variant:Nn \tl_tail:n { V }
 % Frames distinguish bindings, matches, and do blocks. Semicolons and layout
 % close the appropriate inner terms; return expressions are not assignment targets.
 \cs_new_protected:Npn \__leanquote_proof_top:
@@ -697,7 +698,7 @@
   {
     \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl
     \seq_put_right:Ne \l__leanquote_proof_terms_seq
-      { {#1} { \int_use:N \l__leanquote_proof_anchor_int } }
+      { {#1} \tl_tail:V \l_tmpa_tl }
   }
 \cs_new_protected:Npn \__leanquote_proof_word:
   {
@@ -727,14 +728,17 @@
             {if}
               {
                 \__leanquote_proof_top:
-                \str_case:Vn \l__leanquote_proof_kind_str
+                \str_case:VnF \l__leanquote_proof_kind_str
                   {
                     {do} { \__leanquote_proof_frame:n {doif} }
                     {domatch} { \__leanquote_proof_frame:n {doif} }
                     {doif} { \__leanquote_proof_frame:n {doif} }
                     {dotry} { \__leanquote_proof_frame:n {doif} }
                   }
+                  { \__leanquote_proof_frame:n {pureif} }
+                \__leanquote_proof_frame:n {condition}
               }
+            {then} { \__leanquote_proof_then: }
             {try}
               {
                 \__leanquote_proof_top:
@@ -748,12 +752,7 @@
               }
             {catch} { \__leanquote_proof_handler: }
             {finally} { \__leanquote_proof_handler: }
-            {else}
-              {
-                \__leanquote_proof_top:
-                \str_if_eq:VnT \l__leanquote_proof_kind_str {doifReturn}
-                  { \__leanquote_proof_stage:n {doif} }
-              }
+            {else} { \__leanquote_proof_else: }
             {do}
               {
                 \seq_put_right:Ne \l__leanquote_proof_terms_seq
@@ -794,6 +793,50 @@
       }
     \str_clear:N \l__leanquote_proof_word_str
   }
+\cs_new_protected:Npn \__leanquote_proof_then:
+  {
+    % A pattern binding in `if let` ends at `then`, not at the next do
+    % statement. Remove its inner terms before tracking branch assignments.
+    \int_zero:N \l__leanquote_proof_pop_int
+    \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
+      {
+        \str_if_eq:eeT { \tl_head:n {##2} } {condition}
+          { \int_set:Nn \l__leanquote_proof_pop_int {##1} }
+      }
+    \int_compare:nNnT { \l__leanquote_proof_pop_int } > {0}
+      {
+        \int_while_do:nNnn { \seq_count:N \l__leanquote_proof_terms_seq } >
+          { \l__leanquote_proof_pop_int - 1 }
+          { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
+        \__leanquote_proof_top:
+        \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl
+        \seq_put_right:Ne \l__leanquote_proof_terms_seq
+          { { \l__leanquote_proof_kind_str } { \int_use:N \l__leanquote_proof_anchor_int } {then} }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_proof_else:
+  {
+    % Match the nearest conditional still awaiting else. Inner conditionals
+    % that already consumed their else must not capture an outer alternative.
+    \int_zero:N \l__leanquote_proof_pop_int
+    \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
+      {
+        \str_if_eq:eeT { \tl_item:nn {##2} {3} } {then}
+          { \int_set:Nn \l__leanquote_proof_pop_int {##1} }
+      }
+    \int_compare:nNnT { \l__leanquote_proof_pop_int } > {0}
+      {
+        \int_while_do:nNnn { \seq_count:N \l__leanquote_proof_terms_seq } >
+          { \l__leanquote_proof_pop_int }
+          { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
+        \__leanquote_proof_top:
+        \str_if_eq:VnT \l__leanquote_proof_kind_str {doifReturn}
+          { \str_set:Nn \l__leanquote_proof_kind_str {doif} }
+        \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl
+        \seq_put_right:Ne \l__leanquote_proof_terms_seq
+          { { \l__leanquote_proof_kind_str } { \int_use:N \l__leanquote_proof_anchor_int } {else} }
+      }
+  }
 \cs_new_protected:Npn \__leanquote_proof_handler:
   {
     \int_zero:N \l__leanquote_proof_handler_scope_int
@@ -819,7 +862,9 @@
 \cs_new_protected:Npn \__leanquote_proof_end_matches:
   {
     \__leanquote_proof_top:
-    \bool_while_do:nn { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {match} }
+    \bool_while_do:nn
+      { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {match} ||
+        \str_if_eq_p:Vn \l__leanquote_proof_kind_str {pureif} }
       {
         \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl
         \__leanquote_proof_top:
@@ -894,6 +939,7 @@
         ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {lhs} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {rhs} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {value} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {pureif} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} ||
@@ -972,6 +1018,12 @@
                 {41} { \int_decr:N \l__leanquote_depth_int }
                 {93} { \int_decr:N \l__leanquote_depth_int }
                 {125} { \int_decr:N \l__leanquote_depth_int }
+                {8592} { \__leanquote_proof_bind: }
+                {45}
+                  {
+                    \int_compare:nNnT { \l__leanquote_prev_int } = {60}
+                      { \__leanquote_proof_bind: }
+                  }
                 {59}
                   {
                     \int_compare:nNnT { \l__leanquote_depth_int } = {0}
@@ -1044,6 +1096,14 @@
         \int_incr:N \l__leanquote_pos_int
       }
     \__leanquote_proof_word:
+  }
+\cs_new_protected:Npn \__leanquote_proof_bind:
+  {
+    % Both Unicode and ASCII monadic binding arrows complete a let's LHS.
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn { \l__leanquote_depth_int } = {0} }
+      { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {lhs} }
+      { \__leanquote_proof_stage:n {value} }
   }
 \cs_new_protected:Npn \__leanquote_flush:
   {
