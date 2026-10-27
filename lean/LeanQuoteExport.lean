@@ -260,10 +260,11 @@ def exportModule (args : List String) : IO Unit := do
     if !entry.axioms.isEmpty then
       out := out ++ " " ++ " ".intercalate (entry.axioms.toList.map toString)
     out := out ++ "\n" ++ payload "@@doc" doc ++ payload "@@code" code ++ "@@end\n"
-  -- TeX ignores trailing whitespace and the final newline; preserve line sequences.
+  -- TeX strips trailing ASCII spaces and the final newline, but retains tabs.
+  -- A tab inside a multiline string is significant source text.
   let srcLines := if lines.back? == some "" then lines.pop else lines
   for line in srcLines do
-    out := out ++ s!"@@src {String.ofList (line.toList.reverse.dropWhile Char.isWhitespace).reverse}\n"
+    out := out ++ s!"@@src {String.ofList (line.toList.reverse.dropWhile (· == ' ')).reverse}\n"
   unless source == (← IO.FS.readFile target.leanFile) &&
       traceText == (← IO.FS.readFile target.traceFile) do
     fail "source or build trace changed during export; retry"

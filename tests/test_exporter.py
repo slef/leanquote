@@ -62,7 +62,8 @@ axiom assumed : True
 theorem usesAssumed : True := assumed
 theorem usesDependency : True := dependency
 theorem unfinished : False := by sorry
-def marker : String := "header
+def trailingTabs : Nat := 1 -- comment\t
+def marker : String := "header\t
 
 @@end
 @@begin forged
@@ -174,7 +175,7 @@ class ExporterTests(unittest.TestCase):
         trace = json.loads(artifact.with_suffix(".trace").read_text(encoding="utf-8"))
         self.assertEqual(self.headers["@@trace"], trace["depHash"])
         self.assertFalse(self.headers["@@trace"].startswith('"'))
-        self.assertEqual(self.snapshot, [line.rstrip() for line in SOURCE.splitlines()])
+        self.assertEqual(self.snapshot, [line.rstrip(" ") for line in SOURCE.splitlines()])
         self.assertEqual(self.entries["Example.usesDependency"]["axioms"], [])
 
     def test_structure_and_constructor_names(self):
@@ -188,6 +189,34 @@ class ExporterTests(unittest.TestCase):
         self.assertEqual(self.code("Elim.elim"), "| elim")
         self.assertNotIn("Example.Elim.elim.elim", self.entries)
         self.assertNotIn("Example.Data.mk", self.entries)  # implicit, no source name
+
+    @unittest.skipUnless(shutil.which(os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")),
+                         "TeX is not installed")
+    def test_snapshot_preserves_tabs_and_detects_their_removal(self):
+        engine = os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")
+        shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
+        (self.work / "tabs.tex").write_text(r"""
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{leanquote}
+\leanquotesetup{box=false,verify=true}
+\renewcommand{\leanquotebadgetext}[1]{\typeout{LEANQUOTE-BADGE:#1}}
+\begin{document}
+\leanquote[file=package-src/lib-src/Demo.lean]{Example.trailingTabs}
+\leanquote[file=.lake/build/leanquote/package-src/lib-src/Demo.leanquote]{Example.marker}
+\end{document}
+""", encoding="utf-8")
+        try:
+            output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode", "tabs.tex")
+            self.assertNotIn("export is stale", output)
+            self.assertNotIn("LEANQUOTE-BADGE:", output)
+            self.src.write_text(SOURCE.replace('"header\t', '"header'), encoding="utf-8")
+            run(self.work, "lake", "-H", "build", "Demo")
+            output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode", "tabs.tex")
+            self.assertIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+        finally:
+            self.src.write_text(SOURCE, encoding="utf-8")
+            run(self.work, self.shell, native_path(WRAPPER), "Demo")
 
     def test_field_docs_and_full_field_slices(self):
         self.assertEqual(self.doc("Data.value"), "/-- A field /- with nesting -/. -/")
