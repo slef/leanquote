@@ -129,11 +129,9 @@ does not need in order to check the statement; definitions keep their bodies:
 \leanquote[proof=false]{tiling_coRE_complete}
 
 \noindent Proof hiding tracks brackets, local \texttt{let}/\texttt{have} bindings, and
-\texttt{match} expressions using lexical tokens and layout. Their assignments and alternatives
-remain part of the statement; the theorem's proof assignment or equation-style body is replaced.
-Escaped identifiers, string and character literals (including interpolation), line comments,
-and nested block comments do not act as proof delimiters. Default parameter values, such as
-\texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
+\texttt{match} expressions using lexical and layout rules. Their assignments and alternatives
+stay in the statement. Literals, escaped names, comments, and default parameter values such as
+\texttt{(k :} $\mathbb{N}$ \texttt{:= 3)} do not act as proof delimiters.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
 
 With the \opt{doc} option, the doc comment is included:
@@ -465,9 +463,9 @@ authors on presenting the formal statements of machine-checked results to human 
 \setlength{\parsep}{0pt}
 \item[0.19 (2026-10-26)] Highlight raw and interpolated strings, characters, and escaped
   identifiers using Lean boundaries. Configurable literal color and expanded vocabulary.
-  Fix Unicode ordering and scope, escaped-name lookup, proof hiding in result types and
-  equation proofs, split imports, and verification after failed builds. Preserve highlighting
-  across TeX escapes; normalize exported names and reject unsafe metadata.
+  Fix Unicode ordering and scope, escaped-name lookup, scoped proof hiding (including
+  equations), split imports, and verification after failed builds. Respect listing indentation,
+  TeX escapes, and replacement widths; normalize exported names and reject unsafe metadata.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.

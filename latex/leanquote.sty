@@ -533,7 +533,8 @@
   }
 
 % ---------------------------------------------------------------- hiding proofs (proof=false)
-% The mask preserves offsets, so only the proof assignment outside brackets is replaced.
+% The mask preserves offsets; local term scopes distinguish statement assignments
+% and alternatives from the theorem's proof.
 % Definitions keep their bodies, including string and comment contents.
 \int_new:N \l__leanquote_depth_int
 \int_new:N \l__leanquote_pos_int
