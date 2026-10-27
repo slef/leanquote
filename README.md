@@ -199,6 +199,7 @@ plain. Add your own types with `\leanquotesetup{morekeywords=[2]{Prototile, Poin
 the colors are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 Strings and character literals use the brown `leanquotestring` color. Raw strings,
 interpolation expressions, nested comments, and escaped identifiers are recognized separately.
+Known interpolators such as `s!` and `m!` are distinguished from ordinary functions ending in `!`.
 Change the literal style with `\leanquotesetup{stringstyle=\color{brown}}`, or use
 `stringstyle={}` for plain literals. Set `showstringspaces=true` to mark spaces
 inside literals. These settings can also be passed to one quote.
