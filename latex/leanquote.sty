@@ -2064,6 +2064,12 @@
     \group_begin:
       \tl_set_eq:NN \l__leanquote_lst_tl \l__leanquote_setuplst_tl
       \__leanquote_options:n {#1}
+      % Expand when quoting, so setup can refer to macros defined/redefined later.
+      \tl_set:Ne \l_leanquote_file_tl { \l_leanquote_file_tl }
+      \tl_set:Ne \l_leanquote_project_tl { \l_leanquote_project_tl }
+      \tl_set:Ne \l_leanquote_root_tl { \l_leanquote_root_tl }
+      \tl_set:Ne \l_leanquote_source_tl { \l_leanquote_source_tl }
+      \tl_set:Ne \l_leanquote_olean_tl { \l_leanquote_olean_tl }
       \tl_if_blank:VTF \l_leanquote_file_tl
         { \msg_error:nn { leanquote } { no-current-file } }
         {

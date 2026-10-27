@@ -94,6 +94,22 @@ class FileSelectionTests(unittest.TestCase):
             "import Init", "import Lean", "import Init", VALUE.format(2), documented_value,
         ])
 
+    def test_filename_macros_expand_at_quote_time(self):
+        snippets, _ = self.compile(r"""
+\leanquote{value}
+\def\SelectedModule{B}
+\leanquote[imports]{value}
+\leanquote[file=\SavedExport]{value}
+\leanquote{value}
+""", r"""
+\leanquotesetup{file=\SelectedFile}
+\def\SelectedFile{\SelectedModule.lean}
+\def\SelectedModule{A}
+\def\SavedExport{Saved.leanquote}
+""")
+        self.assertEqual(snippets, [VALUE.format(1), "import Lean\n\n" + VALUE.format(2),
+                                    VALUE.format(7), VALUE.format(2)])
+
     def test_setup_file_and_scoped_overrides(self):
         snippets, _ = self.compile(r"""
 \leanquote{value}

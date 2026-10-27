@@ -5,6 +5,28 @@ from export_support import export_files
 
 
 class VerificationTests(TexTestCase):
+    def test_filename_macros_preserve_strict_verification(self):
+        code = "def value : Nat := 1\n"
+        files = {"source directory/Current.lean": code}
+        files.update(export_files(code))
+        files.update({"project/" + path: text for path, text in export_files(code).items()})
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[file=\SelectedFile,olean=\CompiledFile,verify=true]{value}
+\leanquote[file=\SelectedExport,source=\CurrentSource,olean=\CompiledFile,verify=true]{value}
+\leanquote[file=\CurrentSource,olean=\CompiledFile,verify=true]{value}
+\leanquote[file=\SelectedExport,root=\SourceRoot,verify=true]{value}
+\leanquote[project=\SourceRoot,file=\SelectedFile,verify=true]{value}
+""", preamble=r"""
+\def\SelectedFile{\SelectedModule.lean}
+\def\SelectedModule{A}
+\def\SelectedExport{A.leanquote}
+\def\CompiledFile{A.olean}
+\def\CurrentSource{source directory/Current.lean}
+\def\SourceRoot{project/}
+""")
+        self.assertEqual(snippets, [code.strip()] * 5)
+        self.assertNotIn("LEANQUOTE-BADGE:", output)
+
     def test_compiled_file_override_is_not_cached_by_source(self):
         _, output = self.compile_tex(
             {"A.lean": "def value : Nat := 1\n", "valid.olean": "compiled"},
