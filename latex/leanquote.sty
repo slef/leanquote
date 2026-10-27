@@ -666,6 +666,9 @@
 \seq_new:N \l__leanquote_proof_terms_seq
 \bool_new:N \l__leanquote_proof_bar_bool
 \bool_new:N \l__leanquote_proof_else_bool
+\bool_new:N \l__leanquote_proof_handler_bool
+\bool_new:N \l__leanquote_proof_outer_alternative_bool
+\int_new:N \l__leanquote_proof_handler_scope_int
 \bool_new:N \l__leanquote_proof_do_bool
 \cs_generate_variant:Nn \tl_item:nn { Vn }
 \cs_generate_variant:Nn \tl_head:n { V }
@@ -726,8 +729,22 @@
                     {do} { \__leanquote_proof_frame:n {doif} }
                     {domatch} { \__leanquote_proof_frame:n {doif} }
                     {doif} { \__leanquote_proof_frame:n {doif} }
+                    {dotry} { \__leanquote_proof_frame:n {doif} }
                   }
               }
+            {try}
+              {
+                \__leanquote_proof_top:
+                \str_case:Vn \l__leanquote_proof_kind_str
+                  {
+                    {do} { \__leanquote_proof_frame:n {dotry} }
+                    {domatch} { \__leanquote_proof_frame:n {dotry} }
+                    {doif} { \__leanquote_proof_frame:n {dotry} }
+                    {dotry} { \__leanquote_proof_frame:n {dotry} }
+                  }
+              }
+            {catch} { \__leanquote_proof_handler: }
+            {finally} { \__leanquote_proof_handler: }
             {else}
               {
                 \__leanquote_proof_top:
@@ -747,6 +764,7 @@
                     {do} { \__leanquote_proof_stage:n {doReturn} }
                     {domatch} { \__leanquote_proof_stage:n {domatchReturn} }
                     {doif} { \__leanquote_proof_stage:n {doifReturn} }
+                    {dotry} { \__leanquote_proof_stage:n {dotryReturn} }
                   }
               }
             {where}
@@ -757,7 +775,8 @@
                     \seq_if_empty_p:N \l__leanquote_proof_terms_seq ||
                     \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doReturn} ||
                     \str_if_eq_p:Vn \l__leanquote_proof_kind_str {domatchReturn} ||
-                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doifReturn}
+                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doifReturn} ||
+                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {dotryReturn}
                   }
                   { \int_set_eq:NN \l__leanquote_cut_int \l__leanquote_proof_word_start_int }
               }
@@ -771,6 +790,28 @@
           }
       }
     \str_clear:N \l__leanquote_proof_word_str
+  }
+\cs_new_protected:Npn \__leanquote_proof_handler:
+  {
+    \int_zero:N \l__leanquote_proof_handler_scope_int
+    \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
+      {
+        \str_set:Ne \l_tmpa_str { \tl_head:n {##2} }
+        \str_case:Vn \l_tmpa_str
+          {
+            {dotry} { \int_set:Nn \l__leanquote_proof_handler_scope_int {##1} }
+            {dotryReturn} { \int_set:Nn \l__leanquote_proof_handler_scope_int {##1} }
+          }
+      }
+    \int_compare:nNnT { \l__leanquote_proof_handler_scope_int } > {0}
+      {
+        \int_while_do:nNnn { \seq_count:N \l__leanquote_proof_terms_seq } >
+          { \l__leanquote_proof_handler_scope_int }
+          { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
+      }
+    \__leanquote_proof_top:
+    \str_if_eq:VnT \l__leanquote_proof_kind_str {dotryReturn}
+      { \__leanquote_proof_stage:n {dotry} }
   }
 \cs_new_protected:Npn \__leanquote_proof_end_matches:
   {
@@ -790,15 +831,20 @@
     \regex_match:nVTF { \A \s* else (?:\s|\Z) } #1
       { \bool_set_true:N \l__leanquote_proof_else_bool }
       { \bool_set_false:N \l__leanquote_proof_else_bool }
+    \regex_match:nVTF { \A \s* (?:catch|finally) (?:\s|\Z) } #1
+      { \bool_set_true:N \l__leanquote_proof_handler_bool }
+      { \bool_set_false:N \l__leanquote_proof_handler_bool }
     \regex_match:nVTF { \A \s* \| } #1
       { \bool_set_true:N \l__leanquote_proof_bar_bool }
       { \bool_set_false:N \l__leanquote_proof_bar_bool }
-    \bool_if:NF \l__leanquote_proof_bar_bool
+    \regex_extract_once:nVNT { \A \s* \S } #1 \l__leanquote_literal_seq
+      { \int_set:Nn \l__leanquote_proof_indent_int
+          { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } } }
+    \bool_if:NTF \l__leanquote_proof_bar_bool
+      { \__leanquote_proof_bar_layout: }
       {
         \regex_extract_once:nVNT { \A \s* \S } #1 \l__leanquote_literal_seq
           {
-            \int_set:Nn \l__leanquote_proof_indent_int
-              { \str_count:e { \seq_item:Nn \l__leanquote_literal_seq {1} } }
             \int_zero:N \l__leanquote_proof_pop_int
             \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
               {
@@ -811,6 +857,9 @@
                     \str_if_eq_p:Vn \l__leanquote_proof_kind_str {domatch} ||
                     ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} &&
                       ! ( \l__leanquote_proof_else_bool &&
+                          \int_compare_p:n { \l__leanquote_proof_indent_int = \tl_item:nn {##2} {2} } ) ) ||
+                    ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {dotry} &&
+                      ! ( \l__leanquote_proof_handler_bool &&
                           \int_compare_p:n { \l__leanquote_proof_indent_int = \tl_item:nn {##2} {2} } ) )
                   }
                   % RHS terms and do blocks end at their layout boundary.
@@ -828,6 +877,45 @@
           }
       }
   }
+\cs_new_protected:Npn \__leanquote_proof_bar_layout:
+  {
+    % An alternative closes bindings in the preceding branch, while retaining
+    % the enclosing match/equation scope. Do not dedent the match itself merely
+    % because its keyword was placed farther right on a preceding line.
+    \__leanquote_proof_top:
+    \bool_set_true:N \l__leanquote_proof_outer_alternative_bool
+    \bool_while_do:nn
+      {
+        \l__leanquote_proof_outer_alternative_bool &&
+        \int_compare_p:n { \l__leanquote_proof_indent_int <= \l__leanquote_proof_anchor_int } &&
+        ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {lhs} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {rhs} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {value} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} )
+      }
+      {
+        \bool_set_false:N \l__leanquote_proof_outer_alternative_bool
+        \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
+          {
+            \int_compare:nNnT {##1} < { \seq_count:N \l__leanquote_proof_terms_seq }
+              {
+                \str_set:Ne \l_tmpa_str { \tl_head:n {##2} }
+                \str_case:Vn \l_tmpa_str
+                  {
+                    {match} { \bool_set_true:N \l__leanquote_proof_outer_alternative_bool }
+                    {domatch} { \bool_set_true:N \l__leanquote_proof_outer_alternative_bool }
+                    {equations} { \bool_set_true:N \l__leanquote_proof_outer_alternative_bool }
+                  }
+              }
+          }
+        \bool_if:NT \l__leanquote_proof_outer_alternative_bool
+          {
+            \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl
+            \__leanquote_proof_top:
+            \__leanquote_proof_resume:
+          }
+      }
+  }
 \cs_new_protected:Npn \__leanquote_proof_resume:
   {
     \str_case:Vn \l__leanquote_proof_kind_str
@@ -835,6 +923,7 @@
         {doReturn} { \__leanquote_proof_stage:n {do} }
         {domatchReturn} { \__leanquote_proof_stage:n {domatch} }
         {doifReturn} { \__leanquote_proof_stage:n {doif} }
+        {dotryReturn} { \__leanquote_proof_stage:n {dotry} }
       }
     \__leanquote_proof_top:
   }
@@ -886,7 +975,8 @@
                         \bool_if:nF
                           { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do} ||
                             \str_if_eq_p:Vn \l__leanquote_proof_kind_str {domatch} ||
-                            \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} }
+                            \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} ||
+                            \str_if_eq_p:Vn \l__leanquote_proof_kind_str {dotry} }
                           {
                             \seq_if_empty:NF \l__leanquote_proof_terms_seq
                               { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
@@ -902,6 +992,7 @@
                           {
                             {match} {}
                             {domatch} {}
+                            {dotry} {}
                             {lhs} { \__leanquote_proof_stage:n {equations} }
                             {equations} {}
                           }
@@ -925,7 +1016,8 @@
                               {
                                 ! ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do} ||
                                     \str_if_eq_p:Vn \l__leanquote_proof_kind_str {domatch} ||
-                                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} )
+                                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} ||
+                                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {dotry} )
                               }
                               { \int_compare_p:n { \l__leanquote_pos_int - 1 = \l__leanquote_proof_indent_int } }
                               { \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 } }

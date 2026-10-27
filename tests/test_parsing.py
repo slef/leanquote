@@ -450,6 +450,20 @@ class ParsingTests(unittest.TestCase):
             "theorem separateElse :\n    Id.run do\n      let mut p := False\n"
             "      if true then\n        return True\n      else\n        p := True\n"
             "      return p\n := by trivial",
+            "theorem branchLet : Id.run do\n    let mut p := True\n"
+            "    match true with\n    | true =>\n      let _q := p\n"
+            "    | false => p := False\n    return p\n := by change True; trivial",
+            "theorem caught :\n    let result : Except String Prop := do\n"
+            "      let mut p := False\n      try return True catch _ => p := True\n"
+            "      return p\n    result.toOption.getD False := by change True; trivial",
+            "theorem separateCatch :\n    let result : Except String Prop := do\n"
+            "      let mut p := False\n      try\n        return True\n"
+            "      catch _ =>\n        p := True\n      return p\n"
+            "    result.toOption.getD False := by change True; trivial",
+            "theorem matchedCatch :\n    let result : Except String Prop := do\n"
+            "      let mut p := False\n      try\n        return True\n"
+            "      catch\n      | _ => p := True\n      return p\n"
+            "    result.toOption.getD False := by change True; trivial",
         ]
         lean = "\n".join(declarations) + "\n"
         names = [decl.split()[1] for decl in declarations]
