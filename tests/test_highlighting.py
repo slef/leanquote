@@ -227,6 +227,26 @@ note}@*) -/ := by trivial
                         preamble=log)
                     self.assertEqual(output.count("LQ-VISIBLE-SPACE"), 6, output[-2000:])
 
+    def test_trailing_literal_spaces_reach_listings_output(self):
+        code = 'def text : String := "first \n  \nlast"\n'
+        log = r"""
+\makeatletter
+\lst@AddToHook{OutputBox}{\ifx\lst@outputspace\lst@visiblespace
+  \typeout{LQ-VISIBLE-SPACE}\fi}
+\makeatother
+"""
+        for body, count in [
+            (r"\lstinputlisting[style=leanquote,showstringspaces=true]{Fixture.lean}", 3),
+            (r"\lstinputlisting[style=leanquote,showstringspaces=true,lastline=1]{Fixture.lean}", 1),
+            (r"\lstinputlisting[style=leanquote,showstringspaces=true,firstline=2,lastline=2]{Fixture.lean}", 2),
+            (r"\leanquote[file=Fixture.lean,verify=false,showstringspaces=true]{text}", 3),
+        ]:
+            with self.subTest(body=body):
+                _, output = self.compile_tex({"Fixture.lean": code}, body + "\n" +
+                    r"\lstinputlisting[style=leanquote,showstringspaces=false]{Fixture.lean}",
+                    preamble=log)
+                self.assertEqual(output.count("LQ-VISIBLE-SPACE"), count, output[-2000:])
+
     def test_literate_offsets_survive_tex_escapes_and_reset_for_following_listings(self):
         code = (r"theorem arrows : True -> True -> True -> True -> True -> True /- "
                 r"(*@\textbf{note}@*)"

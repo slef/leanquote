@@ -2243,6 +2243,35 @@
 \cs_new_eq:NN \__leanquote_cdef: \lst@CDef
 \cs_new_eq:NN \__leanquote_tab: \lst@ProcessTabulator
 \cs_new_eq:NN \__leanquote_space: \lst@ProcessSpace
+\seq_new:N \l__leanquote_render_trailing_seq
+\bool_new:N \l__leanquote_render_trailing_bool
+\int_new:N \l__leanquote_render_trailing_line_int
+\cs_new_protected:Npn \__leanquote_render_trailing:
+  {
+    % The engine removes trailing spaces on listings' own file read too.
+    % Replay them through the normal space renderer before closing the line.
+    \bool_if:NT \l__leanquote_render_trailing_bool
+      {
+        \bool_lazy_all:nT
+          {
+            { \int_compare_p:n { 0 < \lst@lineno <= \seq_count:N \l__leanquote_render_trailing_seq } }
+            { ! \int_compare_p:nNn { \lst@lineno } = { \l__leanquote_render_trailing_line_int } }
+          }
+          {
+            % Listings' bounds include a terminating \relax: compare them
+            % with its native integer convention, including at DeInit.
+            \ifnum \lst@lineno < \lst@firstline \else
+              \ifnum \lst@lineno > \lst@lastline \else
+                \int_set:Nn \l__leanquote_render_trailing_line_int { \lst@lineno }
+                \prg_replicate:nn
+                  { \seq_item:Nn \l__leanquote_render_trailing_seq { \lst@lineno } }
+                  { \__leanquote_render_space: }
+              \fi
+            \fi
+          }
+      }
+  }
+\lst@AddToHook { EOL } { \__leanquote_render_trailing: }
 \cs_new_protected:Npn \__leanquote_render_space:
   {
     \cs_set_eq:NN \__leanquote_saved_space: \lst@outputspace
@@ -2524,6 +2553,7 @@
   }
 \cs_new_protected:Npn \__leanquote_render_init:
   {
+    \bool_set_false:N \l__leanquote_render_trailing_bool
     \lst@ifleanquotelex
       \__leanquote_render_offset_begin:
       \__leanquote_lex_reset:
@@ -2540,14 +2570,19 @@
         }
         {
           \bool_set_true:N \l__leanquote_render_file_bool
+          \bool_set_true:N \l__leanquote_render_trailing_bool
+          \int_set:Nn \l__leanquote_render_trailing_line_int {-1}
           \seq_clear:N \l__leanquote_render_maps_seq
-          \ior_open:Nn \g__leanquote_ior { \lst@intname }
-          \ior_str_map_inline:Nn \g__leanquote_ior
+          \seq_clear:N \l__leanquote_render_trailing_seq
+          \__leanquote_map_file:nn { \lst@intname }
             {
               \__leanquote_render_prepare:n {##1}
               \seq_put_right:NV \l__leanquote_render_maps_seq \l__leanquote_render_classes_str
+              \str_set:Nn \l_tmpa_str {##1}
+              \regex_replace_once:nnN { \x{20}+ \Z } {} \l_tmpa_str
+              \seq_put_right:Ne \l__leanquote_render_trailing_seq
+                { \str_count:n {##1} - \str_count:N \l_tmpa_str }
             }
-          \ior_close:N \g__leanquote_ior
         }
       \lst@ifdisplaystyle \else
         \cs_set_protected:Npn \lst@InlineJ ##1 { \__leanquote_render_inline:n {##1} }
