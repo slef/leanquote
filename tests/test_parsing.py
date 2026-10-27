@@ -453,6 +453,15 @@ class ParsingTests(unittest.TestCase):
             "theorem branchLet : Id.run do\n    let mut p := True\n"
             "    match true with\n    | true =>\n      let _q := p\n"
             "    | false => p := False\n    return p\n := by change True; trivial",
+            "theorem branchIf : Id.run do\n    let mut p := False\n"
+            "    match true with\n    | true => if true then return True else p := True\n"
+            "    | false => p := True\n    return p\n := by change True; trivial",
+            "theorem branchIfMultiline : Id.run do\n    let mut p := False\n"
+            "    match true with\n    | true =>\n      if true then return True else p := True\n"
+            "    | false => p := True\n    return p\n := by change True; trivial",
+            "theorem branchUnless : Id.run do\n    let mut p := False\n"
+            "    match true with\n    | true => unless false do return True\n"
+            "    | false => p := True\n    return p\n := by change True; trivial",
             "theorem caught :\n    let result : Except String Prop := do\n"
             "      let mut p := False\n      try return True catch _ => p := True\n"
             "      return p\n    result.toOption.getD False := by change True; trivial",

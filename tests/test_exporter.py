@@ -93,6 +93,20 @@ theorem caught :
       try return True catch _ => p := True
       return p
     result.toOption.getD False := by change True; trivial
+theorem branchIf : Id.run do
+    let mut p := False
+    match true with
+    | true => if true then return True else p := True
+    | false => p := True
+    return p
+ := by change True; trivial
+theorem branchUnless : Id.run do
+    let mut p := False
+    match true with
+    | true => unless false do return True
+    | false => p := True
+    return p
+ := by change True; trivial
 def trailingTabs : Nat := 1 -- comment\t
 def marker : String := "header\t
 
@@ -345,7 +359,8 @@ srcDir = "lib-src"
         (self.work / self.headers["@@olean"]).unlink(missing_ok=True)
         run(self.work, self.shell, native_path(WRAPPER), "Demo")
         shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
-        names = ["branchReturn", "branchMatch", "whereProof", "branchLet", "caught"]
+        names = ["branchReturn", "branchMatch", "whereProof", "branchLet", "caught",
+                 "branchIf", "branchUnless"]
         body = "\n".join(
             r"\leanquote[file=" + file + r",proof=false]{Example." + name + "}"
             for name in names for file in [

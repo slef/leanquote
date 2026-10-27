@@ -879,8 +879,8 @@
   }
 \cs_new_protected:Npn \__leanquote_proof_bar_layout:
   {
-    % An alternative closes bindings in the preceding branch, while retaining
-    % the enclosing match/equation scope. Do not dedent the match itself merely
+    % An alternative closes bindings and control flow in the preceding branch,
+    % retaining the enclosing match/equation scope. Do not dedent the match merely
     % because its keyword was placed farther right on a preceding line.
     \__leanquote_proof_top:
     \bool_set_true:N \l__leanquote_proof_outer_alternative_bool
@@ -891,7 +891,10 @@
         ( \str_if_eq_p:Vn \l__leanquote_proof_kind_str {lhs} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {rhs} ||
           \str_if_eq_p:Vn \l__leanquote_proof_kind_str {value} ||
-          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} )
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {doif} ||
+          \str_if_eq_p:Vn \l__leanquote_proof_kind_str {dotry} )
       }
       {
         \bool_set_false:N \l__leanquote_proof_outer_alternative_bool
