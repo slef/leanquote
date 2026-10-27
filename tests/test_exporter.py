@@ -62,6 +62,23 @@ axiom assumed : True
 theorem usesAssumed : True := assumed
 theorem usesDependency : True := dependency
 theorem unfinished : False := by sorry
+theorem branchReturn :
+    Id.run do
+      let mut p := False
+      if true then return True else p := True
+      return p
+ := by trivial
+theorem branchMatch :
+    Id.run do
+      let mut p := False
+      match true with
+      | true => p := True
+      | false => p := False
+      return p
+ := by trivial
+theorem whereProof : True ∧ True where
+  left := by trivial
+  right := by trivial
 def trailingTabs : Nat := 1 -- comment\t
 def marker : String := "header\t
 
@@ -303,6 +320,38 @@ srcDir = "lib-src"
         finally:
             self.dep.write_text(old, encoding="utf-8")
             run(self.work, self.shell, native_path(WRAPPER), "Demo")
+
+    @unittest.skipUnless(shutil.which(os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")),
+                         "TeX is not installed")
+    def test_latex_proof_hiding_preserves_exported_result_types(self):
+        engine = os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")
+        shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
+        names = ["branchReturn", "branchMatch", "whereProof"]
+        body = "\n".join(
+            r"\leanquote[file=" + file + r",proof=false]{Example." + name + "}"
+            for name in names for file in [
+                "package-src/lib-src/Demo.lean",
+                ".lake/build/leanquote/package-src/lib-src/Demo.leanquote"])
+        (self.work / "proofs.tex").write_text(r"""
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{leanquote}
+\leanquotesetup{box=false,verify=true}
+\renewcommand{\leanquotebadgetext}[1]{\typeout{LEANQUOTE-BADGE:#1}}
+\begin{document}
+BODY
+\end{document}
+""".replace("BODY", body), encoding="utf-8")
+        output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode", "proofs.tex")
+        self.assertNotIn("LEANQUOTE-BADGE:", output)
+        expected = [
+            self.code(name).rsplit(" := by", 1)[0] + " := ..." if name != "whereProof" else
+            "theorem whereProof : True ∧ True := ..."
+            for name in names]
+        paths = sorted(self.work.glob("proofs-leanquote-*.lean"),
+                       key=lambda path: int(path.stem.rsplit("-", 1)[1]))
+        self.assertEqual([path.read_text(encoding="utf-8").strip() for path in paths],
+                         [text for text in expected for _ in range(2)])
 
     def test_same_line_and_unicode_positions(self):
         self.assertEqual(self.code("sameA"), "def sameA : Nat := 3")

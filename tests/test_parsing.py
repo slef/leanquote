@@ -430,6 +430,15 @@ class ParsingTests(unittest.TestCase):
             "    return p\n := by trivial",
             "theorem inlineProof : Id.run do\n    let mut p := False\n    p := True\n"
             "    return p := by trivial",
+            "theorem returnElse :\n    Id.run do\n      let mut p := False\n"
+            "      if true then return True else p := True\n      return p\n := by trivial",
+            "theorem doMatch :\n    Id.run do\n      let mut p := False\n"
+            "      match true with\n      | true => p := True\n      | false => p := False\n"
+            "      return p\n := by trivial",
+            "theorem returnIf : Id.run do\n    return if true then True else False := by trivial",
+            "theorem separateElse :\n    Id.run do\n      let mut p := False\n"
+            "      if true then\n        return True\n      else\n        p := True\n"
+            "      return p\n := by trivial",
         ]
         lean = "\n".join(declarations) + "\n"
         names = [decl.split()[1] for decl in declarations]
@@ -444,6 +453,24 @@ class ParsingTests(unittest.TestCase):
         saved, _ = self.compile("", body.replace("[proof=false]", "[proof=false,file=Saved.leanquote]"),
                                 export=exported)
         self.assertEqual(saved, expected)
+
+    def test_where_proofs_are_hidden_before_the_fields(self):
+        declarations = [
+            "theorem whereProof : True ∧ True where\n  left := by trivial\n  right := by trivial",
+            "theorem inlineWhere : WrappedTruth where proof := by trivial",
+        ]
+        lean = "structure WrappedTruth : Prop where\n  proof : True\n" + "\n".join(declarations) + "\n"
+        body = r"\leanquote[proof=false]{whereProof}\leanquote[proof=false]{inlineWhere}"
+        expected = [decl.rsplit(" where", 1)[0] + " := ..." for decl in declarations]
+        snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, expected)
+        exported = "@@leanquote-export 2\n" + "".join(
+            "@@begin " + decl.split()[1] + "\n@@axioms\n" +
+            "".join("@@code " + line + "\n" for line in decl.splitlines()) + "@@end\n"
+            for decl in declarations)
+        snippets, _ = self.compile("", body.replace("[proof=false]",
+            "[proof=false,file=Saved.leanquote]"), export=exported)
+        self.assertEqual(snippets, expected)
 
     def test_unicode_match_suffix_does_not_expose_equation_proof(self):
         lean = ("def αmatch : Nat → Prop := fun n => n = n\n"
