@@ -185,6 +185,8 @@
 % The listings renderer uses the same lexical decisions, with one class per
 % source byte (pdfTeX) or character (Unicode engines): code, string, comment, name.
 \str_new:N \l__leanquote_classes_str
+% Lexical classes: code, string/character, block comment, line comment, escaped name.
+% The separate line-comment class gates listings' native TeX-comment mode.
 \str_new:N \l__leanquote_class_str
 \int_new:N \l__leanquote_class_start_int
 \cs_new_protected:Npn \__leanquote_lex_reset:
@@ -568,8 +570,8 @@
 \bool_new:N \l__leanquote_proof_bar_bool
 \cs_generate_variant:Nn \tl_item:nn { Vn }
 \cs_generate_variant:Nn \tl_head:n { V }
-% Frames distinguish a binding's lhs, pending value, value, or equations from
-% a match expression. Semicolons and layout close the appropriate inner terms.
+% Frames distinguish bindings, matches, and do blocks. Semicolons and layout
+% close the appropriate inner terms; return expressions are not assignment targets.
 \cs_new_protected:Npn \__leanquote_proof_top:
   {
     \str_clear:N \l__leanquote_proof_kind_str
@@ -604,6 +606,12 @@
                 \seq_put_right:Ne \l__leanquote_proof_terms_seq
                   { {do} { \int_use:N \l__leanquote_proof_indent_int } }
               }
+            {return}
+              {
+                \__leanquote_proof_top:
+                \str_if_eq:VnT \l__leanquote_proof_kind_str {do}
+                  { \__leanquote_proof_stage:n {doReturn} }
+              }
             {let} { \__leanquote_proof_frame:n {lhs} }
             {have} { \__leanquote_proof_frame:n {lhs} }
             {letI} { \__leanquote_proof_frame:n {lhs} }
@@ -626,6 +634,11 @@
   }
 \cs_new_protected:Npn \__leanquote_proof_layout:N #1
   {
+    % A return expression cannot be a reassignment target. On the next
+    % physical line, resume ordinary do-statement tracking.
+    \__leanquote_proof_top:
+    \str_if_eq:VnT \l__leanquote_proof_kind_str {doReturn}
+      { \__leanquote_proof_stage:n {do} }
     \regex_match:nVTF { \A \s* \| } #1
       { \bool_set_true:N \l__leanquote_proof_bar_bool }
       { \bool_set_false:N \l__leanquote_proof_bar_bool }
@@ -704,6 +717,8 @@
                     \int_compare:nNnT { \l__leanquote_depth_int } = {0}
                       {
                         \__leanquote_proof_end_matches:
+                        \str_if_eq:VnT \l__leanquote_proof_kind_str {doReturn}
+                          { \__leanquote_proof_stage:n {do} \__leanquote_proof_top: }
                         \str_if_eq:VnF \l__leanquote_proof_kind_str {do}
                           {
                             \seq_if_empty:NF \l__leanquote_proof_terms_seq
@@ -738,7 +753,9 @@
                         \str_if_eq:VnTF \l__leanquote_proof_kind_str {lhs}
                           { \__leanquote_proof_stage:n {value} }
                           {
-                            \str_if_eq:VnF \l__leanquote_proof_kind_str {do}
+                            \bool_lazy_or:nnT
+                              { ! \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do} }
+                              { \int_compare_p:n { \l__leanquote_pos_int - 1 = \l__leanquote_proof_indent_int } }
                               { \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 } }
                           }
                       }
@@ -1994,6 +2011,7 @@
     \cs_set_eq:NN \lst@CDef \__leanquote_cdef:
     \tl_set:Nn \l_tmpa_tl {#4}
     \tl_put_left:Nn \l_tmpa_tl { \__leanquote_render_mode_begin: }
+    % Retain primitive conditionals: TeX also counts them in skipped factory branches.
     \tl_replace_all:Nnn \l_tmpa_tl
       { \ifx \lst@next \@empty }
       { \__leanquote_render_mode_end: \ifx \lst@next \@empty }

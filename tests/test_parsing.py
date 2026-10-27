@@ -396,6 +396,10 @@ class ParsingTests(unittest.TestCase):
             "      if true then\n        p := True\n      return p\n := by trivial",
             "theorem doSemicolon :\n    Id.run do\n      let mut p := False; p := True\n"
             "      return p\n := by trivial",
+            "theorem inlineDo : Id.run do\n    let mut p := False\n    p := True\n"
+            "    return p\n := by trivial",
+            "theorem inlineProof : Id.run do\n    let mut p := False\n    p := True\n"
+            "    return p := by trivial",
         ]
         lean = "\n".join(declarations) + "\n"
         names = [decl.split()[1] for decl in declarations]
