@@ -66,7 +66,8 @@ shell escape:
   qualified name matches a declaration inside the corresponding `namespace`. The requested name
   must be the full name or a dotted suffix of it, including escaped components such as
   `«A B».foo`. Nested comments and strings are skipped when
-  finding declarations, and namespace/section scope is tracked. An unknown name is an error,
+  finding declarations; bracketed terms (including syntax quotations) stay with their enclosing
+  declaration. Namespace/section scope is tracked. An unknown name is an error,
   an ambiguous short name a warning, with the first match used.
 - **What has Lean checked?** Quotes get a red mark in the corner of their box
   (and a warning in the log) when they are not known to be fully checked:

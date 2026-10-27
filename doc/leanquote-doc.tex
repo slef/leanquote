@@ -128,8 +128,9 @@ does not need in order to check the statement; definitions keep their bodies:
 \end{latexsrc}
 \leanquote[proof=false]{tiling_coRE_complete}
 
-\noindent Proof hiding tracks brackets, local \texttt{let}/\texttt{have} bindings, and
-\texttt{match} expressions using lexical and layout rules. Their assignments and alternatives
+\noindent Proof hiding tracks brackets, local \texttt{let}/\texttt{have} bindings,
+\texttt{match} expressions, and \texttt{do} blocks using lexical and layout rules.
+Their assignments and alternatives
 stay in the statement. Literals, escaped names, comments, and default parameter values such as
 \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)} do not act as proof delimiters.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
@@ -235,6 +236,12 @@ style for one quote or through \cs{leanquotesetup}:
 \leanquotesetup{stringstyle=\color{brown}}
 \leanquote[stringstyle={}]{Tiles} % plain strings and characters
 \end{latexsrc}
+Starred \opt{literate} replacements leave strings and comments unchanged:
+\begin{latexsrc}
+\leanquote[literate=*{->}{{$\to$}}1]{Tiles}
+\end{latexsrc}
+With \opt{texcl=true}, text after a Lean \texttt{--} line-comment opener is interpreted as
+\LaTeX; \texttt{--} inside a string or block comment stays literal.
 
 \paragraph{Unicode and engines.} The \texttt{leanquote} listings style typesets about a hundred of Lean's Unicode symbols
 ($\mathbb{N}\ \mathbb{Z}\ \mathbb{R}\ \to\ \forall\ \exists\ \sum\ \bigcup\ \le$ \dots, Greek letters, sub- and superscripts) as math, under
@@ -258,8 +265,9 @@ where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \
 \texttt{opaque}, and the modifiers are \texttt{public}, \texttt{private}, \texttt{protected},
 \texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}, \texttt{meta}.
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
-Nested comments, escaped and raw strings, and character literals are skipped when recognizing
-declarations. Comments are omitted from the import block, including inline and multiline comments.
+Nested comments and literals are skipped when recognizing declarations. Bracketed terms,
+including syntax quotations, stay within their enclosing declaration.
+Comments are omitted from the import block, including inline and multiline comments.
 The header may include \texttt{module} or \texttt{prelude}, and import commands may span lines.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
@@ -458,14 +466,17 @@ The package and this documentation were produced with the help of Claude Opus~5.
 \textsf{leanquote} is released under the MIT License. It grew out of a position paper by the
 authors on presenting the formal statements of machine-checked results to human readers.
 
+\begingroup
+\small
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
-\item[0.19 (2026-10-26)] Highlight raw and interpolated strings, characters, and escaped
-  identifiers using Lean boundaries. Configurable literal color and expanded vocabulary.
-  Fix Unicode ordering and scope, escaped-name lookup, scoped proof hiding (including
-  equations), split imports, and verification after failed builds. Respect listing indentation,
-  TeX escapes, and replacement widths; normalize exported names and reject unsafe metadata.
+\item[0.19 (2026-10-26)] Lean-aware highlighting for raw/interpolated strings, characters,
+  escaped identifiers, and expanded vocabulary; configurable literal color. Fix Unicode
+  order/scope, escaped names, quoted commands, proof hiding (local bindings, equations, and
+  \texttt{do} blocks), split imports, and failed-build verification. Respect indentation,
+  TeX escapes, starred replacements, and replacement widths. Restore \opt{texcl}, preserve
+  snapshot tabs, normalize exported names, and reject unsafe metadata.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.
@@ -495,5 +506,6 @@ authors on presenting the formal statements of machine-checked results to human 
 \item[0.2] Direct reading of \texttt{.lean} files; compiled check.
 \item[0.1] First version, based on exports.
 \end{description}
+\endgroup
 
 \end{document}
