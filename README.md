@@ -55,9 +55,9 @@ With `proof=false`, v3 exports supply Lean-derived theorem and lemma statements,
 the author's notation and parameter defaults. Without an export, or with an older export,
 LaTeX hides assignment proofs conservatively after simple signatures, recognizing `by`
 proofs and single references. Unparenthesized term-control constructs, equation or
-`where` proofs, and ambiguous term proofs stay complete, with a warning. A v3 theorem with
-no prepared statement also stays complete. This warning does not change verification marks;
-definitions always keep their bodies.
+`where` proofs, proofs containing further assignments or branches, and ambiguous term proofs
+stay complete, with a warning. A v3 theorem with no prepared statement also stays complete.
+This warning does not change verification marks; definitions always keep their bodies.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
 in the same listing. `\leanquote[imports]{}` quotes only that block: the `module`, `prelude`, and
@@ -125,6 +125,9 @@ The exporter asks Lake for the actual source and compiled-file paths, including 
 directories. It records the build fingerprint as well as the source text.
 The v2/v3 formats reject control characters in metadata (including names and paths),
 whitespace inside axiom names, and bare carriage returns in source. LF and CRLF are supported.
+Source and export reads preserve trailing spaces, including inside multiline strings;
+space-only source changes invalidate snapshots. Regenerate older exports whose snapshots
+discarded trailing spaces.
 If `Abstract.lean` is edited after the export, LaTeX warns and reads the `.lean` file
 directly, so quotes of a `.lean` file show its current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found. An export can be given explicitly as

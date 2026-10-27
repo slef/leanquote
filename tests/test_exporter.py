@@ -137,12 +137,13 @@ theorem guardedCatch :
     result.toOption.getD False := by change True; trivial
 section
 local notation "PickType " p " := " q => q
-theorem localAssignment : PickType False := True := by trivial
+theorem localAssignment : PickType False := by exact True := by trivial
 end
 section
 local notation "ChooseType " p " where " q => q
 theorem localWhere : ChooseType False where True := by trivial
 end
+theorem spaces : "first \n  \nlast" = "first \\n  \\nlast" := by rfl
 def trailingTabs : Nat := 1 -- comment\t
 def marker : String := "header\t
 
@@ -261,7 +262,7 @@ class ExporterTests(unittest.TestCase):
         trace = json.loads(artifact.with_suffix(".trace").read_text(encoding="utf-8"))
         self.assertEqual(self.headers["@@trace"], trace["depHash"])
         self.assertFalse(self.headers["@@trace"].startswith('"'))
-        self.assertEqual(self.snapshot, [line.rstrip(" ") for line in SOURCE.splitlines()])
+        self.assertEqual(self.snapshot, SOURCE.splitlines())
         self.assertEqual(self.entries["Example.usesDependency"]["axioms"], [])
 
     def test_structure_and_constructor_names(self):
@@ -405,7 +406,7 @@ srcDir = "lib-src"
         names = ["branchReturn", "branchMatch", "whereProof", "branchLet", "caught",
                  "branchIf", "branchUnless", "bitwise", "boolean", "pipe", "gapProof",
                  "defaultValue", "patternFallback", "inlineMatchReturn", "guardedCatch",
-                 "localAssignment", "localWhere", "equationView"]
+                 "localAssignment", "localWhere", "equationView", "spaces"]
         body = "\n".join(
             r"\leanquote[file=" + file + r",proof=false]{Example." + name + "}"
             for name in names for file in [
@@ -441,9 +442,12 @@ BODY
                 self.assertNotIn("by trivial", statement)
                 self.assertNotIn("by rfl", statement)
         self.assertEqual("\n".join(self.entries["Example.localAssignment"]["statement"]),
-                         "theorem localAssignment : PickType False := True := ...")
+                         "theorem localAssignment : PickType False := by exact True := ...")
         self.assertEqual("\n".join(self.entries["Example.localWhere"]["statement"]),
                          "theorem localWhere : ChooseType False where True := ...")
+        self.assertEqual("\n".join(self.entries["Example.spaces"]["statement"]),
+                         self.code("spaces").rsplit(" := by", 1)[0] + " := ...")
+        self.assertIn('"first \n  \nlast"', self.code("spaces"))
         self.assertEqual("\n".join(self.entries["Example.defaultValue"]["statement"]),
                          "@[simp] theorem defaultValue (n : Nat := 3) : 0 + n = n := ...")
         self.assertEqual("\n".join(self.entries["Example.whereProof"]["statement"]),

@@ -19,6 +19,60 @@ class ExportTests(TexTestCase):
         self.assertEqual(output.count("LEANQUOTE-BADGE:USES SORRY"), 3)
         self.assertNotIn("LEANQUOTE-BADGE:UNVERIFIED", output)
 
+    def test_significant_spaces_survive_source_and_all_export_versions(self):
+        code = 'theorem value : "first \n  \nlast" = "first \\n  \\nlast" := by rfl\n'
+        statement = code.rsplit(" := by", 1)[0] + " := ...\n"
+        for version in (1, 2, 3):
+            with self.subTest(version=version):
+                files = export_files(code, version=version, kind="theorem",
+                                     statement=statement if version == 3 else None)
+                snippets, output = self.compile_tex(files, r"""
+\leanquote[file=A.lean,proof=false]{value}
+\leanquote[file=A.leanquote,proof=false]{value}
+\leanquote[file=A.leanquote,proof=true]{value}
+""")
+                self.assertEqual(snippets, [statement.strip(), statement.strip(), code.strip()])
+                self.assertNotIn("Cannot safely hide", output)
+                self.assertNotIn("export is stale", output)
+
+        # Also exercise the source reader without a sidecar, a final newline,
+        # and with CRLF input. Literals keep their spaces in every case.
+        for text in (code, code.rstrip("\n"), code.replace("\n", "\r\n")):
+            with self.subTest(source=repr(text)):
+                snippets, _ = self.compile_tex({"A.lean": text},
+                    r"\leanquote[file=A.lean,proof=false]{value}")
+                self.assertEqual(snippets, [statement.strip()])
+
+    def test_significant_space_change_invalidates_export_snapshot(self):
+        old = 'def value : String := "first \nlast"\n'
+        current = old.replace('first \n', 'first\n')
+        files = export_files(old, version=3)
+        files["A.lean"] = current
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[file=A.lean]{value}
+\leanquote[file=A.leanquote]{value}
+""")
+        self.assertEqual(snippets, [current.strip(), old.strip()])
+        self.assertIn("Reading A.lean directly", " ".join(output.split()))
+        self.assertEqual(output.count("LEANQUOTE-BADGE:UNVERIFIED"), 1)
+
+    def test_source_reader_keeps_utf8_and_crlf_across_chunks(self):
+        declaration = 'def value : String := "α \nlast"\n'
+        # Place a multibyte character across the first read boundary.
+        prefix = "--\n" * 1300
+        header = declaration.split("α", 1)[0]
+        gap = 4095 - len((prefix + header).encode("utf-8"))
+        prefix += "--" + "x" * (gap - 3) + "\n"
+        snippets, _ = self.compile_tex({"A.lean": prefix + declaration},
+            r"\leanquote[file=A.lean]{value}")
+        self.assertEqual(snippets, [declaration.strip()])
+
+        # The CR and LF of a line ending may arrive in different reads too.
+        prefix = "--\n" * 1365 + "\r\n"
+        snippets, _ = self.compile_tex({"A.lean": prefix + declaration},
+            r"\leanquote[file=A.lean]{value}")
+        self.assertEqual(snippets, [declaration.strip()])
+
     def test_v3_missing_view_keeps_theorem_and_warns(self):
         code = "theorem value : True := by trivial\n"
         files = export_files(code, version=3, kind="theorem")

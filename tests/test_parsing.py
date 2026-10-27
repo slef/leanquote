@@ -367,6 +367,31 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(snippets, [custom.splitlines()[1]])
         self.assertIn("Cannot safely hide", output)
 
+    def test_tactic_term_in_statement_notation_keeps_full_declaration(self):
+        declarations = [
+            "theorem custom : PickType False := by exact True := by trivial",
+            "theorem equation : PickType False := by exact (Nat → True)\n  | _ => trivial",
+            "theorem whereTerm : PickType False := by exact EmptyTruth where",
+        ]
+        lean = ('local notation "PickType " _p " := " q => q\n'
+                'structure EmptyTruth : Prop where\n' + "\n".join(declarations) + "\n")
+        body = "".join(r"\leanquote[proof=false]{" + name + "}"
+                       for name in ["custom", "equation", "whereTerm"])
+        snippets, output = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, declarations)
+        self.assertEqual(output.count("Cannot safely hide"), 3)
+        for version in (1, 2):
+            with self.subTest(version=version):
+                exported = f"@@leanquote-export {version}\n" + "".join(
+                    "@@begin " + declaration.split()[1] + "\n@@axioms\n" + "".join(
+                        ("@@code " if version == 2 else "") + line + "\n"
+                        for line in declaration.splitlines()) + "@@end\n"
+                    for declaration in declarations)
+                snippets, output = self.compile("", body.replace("[proof=false]",
+                    "[proof=false,file=Saved.leanquote]"), export=exported)
+                self.assertEqual(snippets, declarations)
+                self.assertEqual(output.count("Cannot safely hide"), 3)
+
     def test_unknown_qualified_names_error(self):
         for name in ["Missing.foo", "Missing.child", "A.Inner.after", "A.globalValue"]:
             with self.subTest(name=name):

@@ -144,6 +144,60 @@
 % ---------------------------------------------------------------- state
 \ior_new:N \g__leanquote_ior
 \iow_new:N \g__leanquote_iow
+
+% TeX's line reader discards trailing ASCII spaces before tokenization, even
+% with \readline. Decode raw bytes instead, preserving spaces inside literals
+% and in source snapshots. `default` gives UTF-8 bytes on pdfTeX and native
+% Unicode characters on LuaTeX/XeTeX, matching the lexical scanner.
+\str_new:N \l__leanquote_file_contents_str
+\str_new:N \l__leanquote_file_pending_str
+\str_new:N \l__leanquote_file_line_str
+\seq_new:N \l__leanquote_file_lines_seq
+\int_new:N \l__leanquote_file_size_int
+\int_new:N \l__leanquote_file_offset_int
+\bool_new:N \l__leanquote_file_map_bool
+\cs_generate_variant:Nn \str_set_convert:Nnnn { NVnn }
+\cs_generate_variant:Nn \seq_set_split_keep_spaces:Nnn { NeV }
+\cs_new_protected:Npn \__leanquote_file_map_break:
+  { \bool_set_false:N \l__leanquote_file_map_bool \seq_map_break: }
+\cs_new_protected:Npn \__leanquote_map_file:nn #1#2
+  {
+    \cs_set_protected:Npn \__leanquote_file_line:n ##1 {#2}
+    \int_set:Nn \l__leanquote_file_size_int { \file_size:n {#1} }
+    \int_set:Nn \l__leanquote_file_offset_int {1}
+    \str_clear:N \l__leanquote_file_pending_str
+    \bool_set_true:N \l__leanquote_file_map_bool
+    \bool_while_do:nn
+      { \l__leanquote_file_map_bool &&
+        \int_compare_p:n { \l__leanquote_file_offset_int <= \l__leanquote_file_size_int } }
+      {
+        % Bound TeX memory usage for large modules. Split raw bytes into lines
+        % before UTF-8 decoding, so a character or CRLF can cross a chunk boundary.
+        \str_set:Ne \l__leanquote_file_contents_str
+          { \file_hex_dump:nnn {#1} { \l__leanquote_file_offset_int }
+              { \int_min:nn { \l__leanquote_file_offset_int + 4095 } { \l__leanquote_file_size_int } } }
+        \str_set_convert:NVnn \l__leanquote_file_contents_str
+          \l__leanquote_file_contents_str {iso88591/hex} {}
+        \str_put_left:NV \l__leanquote_file_contents_str \l__leanquote_file_pending_str
+        \seq_set_split_keep_spaces:NeV \l__leanquote_file_lines_seq
+          { \char_generate:nn {10} {12} } \l__leanquote_file_contents_str
+        \seq_pop_right:NN \l__leanquote_file_lines_seq \l__leanquote_file_pending_str
+        \int_add:Nn \l__leanquote_file_offset_int {4096}
+        % A final newline terminates a line; it does not add an empty line.
+        \int_compare:nNnT { \l__leanquote_file_offset_int } > { \l__leanquote_file_size_int }
+          { \str_if_empty:NF \l__leanquote_file_pending_str
+              { \seq_put_right:NV \l__leanquote_file_lines_seq \l__leanquote_file_pending_str } }
+        \seq_map_inline:Nn \l__leanquote_file_lines_seq
+          {
+            \str_set:Nn \l__leanquote_file_line_str {##1}
+            \regex_replace_once:nnN { \x{0D} \Z } {} \l__leanquote_file_line_str
+            \str_set_convert:NVnn \l__leanquote_file_line_str
+              \l__leanquote_file_line_str {utf8} {default}
+            \exp_args:NV \__leanquote_file_line:n \l__leanquote_file_line_str
+          }
+      }
+  }
+
 \int_new:N \g__leanquote_count_int
 \str_new:N \l__leanquote_name_str
 \str_new:N \l__leanquote_file_str
@@ -823,6 +877,11 @@
           { \A \s* (?: by (?:\s|\Z) .* | [^\s:;=|()\[\]\{\}]+ \s* ) \Z }
           \l__leanquote_proof_body_str
           { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
+        % A `by` term may itself belong to a custom statement notation. A
+        % later assignment, equation, or `where` can start the real proof (or
+        % occur inside tactics); either interpretation is uncertain here.
+        \regex_match:nVT { := | \| | \b where \b } \l__leanquote_proof_body_str
+          { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
         \bool_if:nTF
           { ! \l__leanquote_proof_uncertain_bool && \int_compare_p:nNn { \l__leanquote_cut_int } > {0} }
           { \seq_set_eq:NN \l__leanquote_buf_seq \l__leanquote_statement_seq }
@@ -914,8 +973,7 @@
     \seq_clear:N \l__leanquote_statement_seq
     \str_clear:N \l__leanquote_export_kind_str
     \int_zero:N \l__leanquote_matches_int
-    \ior_open:Nn \g__leanquote_ior {#1}
-    \ior_str_map_inline:Nn \g__leanquote_ior
+    \__leanquote_map_file:nn {#1}
       {
         \bool_if:NTF \l__leanquote_inside_bool
           {
@@ -956,7 +1014,6 @@
               { }
           }
       }
-    \ior_close:N \g__leanquote_ior
     \bool_if:NT \l__leanquote_inside_bool
       { \msg_error:nnn { leanquote } { export-payload } {#1} }
     \bool_if:NT \l__leanquote_found_bool
@@ -1293,7 +1350,7 @@
       { \seq_put_right:Ne \l__leanquote_buf_seq
           { \seq_use:Nn \l__leanquote_import_words_seq {~} } }
     \bool_if:NTF \l__leanquote_import_stop_bool
-      { \ior_map_break: }
+      { \__leanquote_file_map_break: }
       {
         % A public/meta prefix may belong to the next declaration. Commit it
         % only once a subsequent import keyword confirms it belongs to a header.
@@ -1309,17 +1366,15 @@
     \seq_clear:N \l__leanquote_import_modifiers_seq
     \__leanquote_lex_reset:
     \int_set:Nn \l__leanquote_matches_int { 1 }
-    \ior_open:Nn \g__leanquote_ior {#1}
     \str_if_eq:eeTF { \str_range:nnn {#1} {-5} {-1} } { .lean }
-      { \ior_str_map_inline:Nn \g__leanquote_ior { \__leanquote_import_line:n {##1} } }
+      { \__leanquote_map_file:nn {#1} { \__leanquote_import_line:n {##1} } }
       {
-        \ior_str_map_inline:Nn \g__leanquote_ior
+        \__leanquote_map_file:nn {#1}
           {
             \regex_match:nnT { \A @@src (\x{20} | \Z) } {##1}
               { \exp_args:Ne \__leanquote_import_line:n { \str_range:nnn {##1} {7} {-1} } }
           }
       }
-    \ior_close:N \g__leanquote_ior
   }
 \cs_generate_variant:Nn \__leanquote_imports:n { V }
 \bool_new:N \l__leanquote_hasdecl_bool
@@ -1337,8 +1392,7 @@
     \seq_clear:N \l__leanquote_doc_seq
     \seq_clear:N \l__leanquote_attr_seq
     \seq_clear:N \l__leanquote_blank_seq
-    \ior_open:Nn \g__leanquote_ior {#1}
-    \ior_str_map_inline:Nn \g__leanquote_ior
+    \__leanquote_map_file:nn {#1}
       {
         \bool_set_false:N \l__leanquote_consumed_bool
         \str_set:Nn \l__leanquote_line_str {##1}
@@ -1350,7 +1404,6 @@
           { \l__leanquote_source_nested_bool }
           { \__leanquote_src_outside:n {##1} }
       }
-    \ior_close:N \g__leanquote_ior
   }
 
 % Compare modification dates of a `.lean` file and its compiled `.olean` (once per file per run).
@@ -1478,8 +1531,7 @@
     \str_clear:N \l__leanquote_recorded_olean_str
     \str_clear:N \l__leanquote_recorded_trace_str
     \str_clear:N \l__leanquote_export_version_str
-    \ior_open:Nn \g__leanquote_ior {#1}
-    \ior_str_map_inline:Nn \g__leanquote_ior
+    \__leanquote_map_file:nn {#1}
       {
         \regex_extract_once:nnNT { \A @@leanquote-export \s+ ([123]) \Z }
           {##1} \l__leanquote_metadata_seq
@@ -1496,7 +1548,6 @@
         \regex_match:nnT { \A @@trace\x{20} } {##1}
           { \str_set:Ne \l__leanquote_recorded_trace_str { \str_range:nnn {##1} {9} {-1} } }
       }
-    \ior_close:N \g__leanquote_ior
     \str_if_empty:NT \l__leanquote_export_version_str
       { \msg_error:nnn { leanquote } { export-version } {#1} }
     \tl_if_blank:VF \l_leanquote_source_tl
@@ -1507,10 +1558,8 @@
 \cs_new_protected:Npn \__leanquote_compare_source:n #1
   {
     \seq_clear:N \l__leanquote_current_seq
-    \ior_open:Nn \g__leanquote_ior {#1}
-    \ior_str_map_inline:Nn \g__leanquote_ior
+    \__leanquote_map_file:nn {#1}
       { \seq_put_right:Nn \l__leanquote_current_seq {##1} }
-    \ior_close:N \g__leanquote_ior
     \bool_set:Nn \l__leanquote_fresh_bool
       { \tl_if_eq_p:NN \l__leanquote_stored_seq \l__leanquote_current_seq }
   }

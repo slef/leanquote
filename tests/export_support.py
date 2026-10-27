@@ -13,7 +13,7 @@ def make_export(code, *, name="value", source=None, axioms="", trace="build-a",
     ]
     if version == 3:
         lines += ["@@kind " + kind]
-    lines += ["@@code " + line for line in code.splitlines()]
+    lines += [("@@code " if version >= 2 else "") + line for line in code.splitlines()]
     if statement is not None:
         assert version == 3
         lines += ["@@statement " + line for line in statement.splitlines()]

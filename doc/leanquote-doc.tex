@@ -129,9 +129,9 @@ preserving the author's notation and parameter defaults. For example, from the p
 
 \noindent Source-only quotes and older exports use conservative \LaTeX{} proof hiding.
 After simple signatures, \texttt{by} proofs and single references can be hidden.
-Unparenthesized term-control constructs, equation or \texttt{where} proofs, and ambiguous
-term proofs stay complete, with a warning. A v3 theorem without a
-prepared statement also stays complete. This warning does not change verification marks.
+Unparenthesized term-control constructs, equation or \texttt{where} proofs, proofs with
+further assignments or branches, and ambiguous term proofs stay complete, with a warning.
+A v3 theorem without a prepared statement also stays complete. This warning does not change verification marks.
 Definitions always keep their bodies. Set \opt{proof=false} in \cs{leanquotesetup} to request
 statement-only output throughout.
 
@@ -391,6 +391,10 @@ followed by the module names to skip
 this pass; the export still contains full source, exact ranges, and axioms. Theorems without
 a prepared view stay complete with a warning when \opt{proof=false}.
 
+Source and export reads preserve trailing spaces, including inside multiline strings.
+Space-only source changes invalidate snapshots. Regenerate older exports whose snapshots
+discarded trailing spaces.
+
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
 explicitly with \verb|\leanquote[file=Abstract.leanquote]{...}|.
 An explicitly selected export deliberately shows its recorded snapshot. With verification
@@ -496,8 +500,8 @@ authors on presenting the formal statements of machine-checked results to human 
   raw/interpolated strings, characters, nested comments, escaped identifiers, and expanded
   vocabulary; configurable literal color. Respect Unicode scope, indentation, line selection,
   TeX escapes, custom replacements, and visible string spaces. Fix standard declaration forms,
-  import boundaries, and required postfix directives. Preserve snapshot tabs, validate export
-  source/build provenance, reject unsafe metadata, and expand filename macros at quote time.
+  import boundaries, and required postfix directives. Preserve source and snapshot spaces and tabs,
+  validate export source/build provenance, reject unsafe metadata, and expand filename macros at quote time.
   Bound regression fixtures per TeX process.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
