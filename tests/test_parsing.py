@@ -458,10 +458,17 @@ class ParsingTests(unittest.TestCase):
         declarations = [
             "theorem whereProof : True ∧ True where\n  left := by trivial\n  right := by trivial",
             "theorem inlineWhere : WrappedTruth where proof := by trivial",
+            "theorem qualifiedWhere : A.where := by trivial",
+            "theorem headWhere : where.statement := by trivial",
         ]
-        lean = "structure WrappedTruth : Prop where\n  proof : True\n" + "\n".join(declarations) + "\n"
-        body = r"\leanquote[proof=false]{whereProof}\leanquote[proof=false]{inlineWhere}"
-        expected = [decl.rsplit(" where", 1)[0] + " := ..." for decl in declarations]
+        lean = ("structure WrappedTruth : Prop where\n  proof : True\n"
+                "namespace A\ndef «where» : Prop := True\nend A\n"
+                "namespace «where»\ndef statement : Prop := True\nend «where»\n" +
+                "\n".join(declarations) + "\n")
+        body = "".join(r"\leanquote[proof=false]{" + decl.split()[1] + "}"
+                       for decl in declarations)
+        expected = [decl.rsplit(" where", 1)[0] + " := ..." for decl in declarations[:2]] + [
+            decl.rsplit(" := by", 1)[0] + " := ..." for decl in declarations[2:]]
         snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
         self.assertEqual(snippets, expected)
         exported = "@@leanquote-export 2\n" + "".join(

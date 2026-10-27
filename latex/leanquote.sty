@@ -683,7 +683,14 @@
   }
 \cs_new_protected:Npn \__leanquote_proof_word:
   {
-    \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+    \bool_if:nT
+      {
+        \int_compare_p:nNn { \l__leanquote_depth_int } = {0} &&
+        ! \str_if_eq_p:ee
+            { \str_item:Nn \l__leanquote_code_str { \l__leanquote_proof_word_start_int - 1 } } {.} &&
+        ! \str_if_eq_p:ee
+            { \str_item:Nn \l__leanquote_code_str { \l__leanquote_pos_int } } {.}
+      }
       {
         \str_case:Vn \l__leanquote_proof_word_str
           {
