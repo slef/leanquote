@@ -499,19 +499,25 @@ class ParsingTests(unittest.TestCase):
             "      catch\n      | _ => p := True\n      return p\n"
             "    result.toOption.getD False := by change True; trivial",
         ]
-        lean = "\n".join(declarations) + "\n"
-        names = [decl.split()[1] for decl in declarations]
-        body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
-        snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
-        expected = [decl.rsplit(" := by", 1)[0] + " := ..." for decl in declarations]
-        self.assertEqual(snippets, expected)
-        exported = "@@leanquote-export 2\n" + "".join(
-            "@@begin " + name + "\n@@axioms\n" +
-            "".join("@@code " + line + "\n" for line in decl.splitlines()) + "@@end\n"
-            for name, decl in zip(names, declarations))
-        saved, _ = self.compile("", body.replace("[proof=false]", "[proof=false,file=Saved.leanquote]"),
-                                export=exported)
-        self.assertEqual(saved, expected)
+        # Each source quote scans the file. Keep both the source and quote count
+        # bounded per process as this regression collection grows; retain the
+        # 60-second timeout so a genuinely stuck TeX process still fails.
+        for start in range(0, len(declarations), 4):
+            batch = declarations[start:start + 4]
+            names = [decl.split()[1] for decl in batch]
+            with self.subTest(names=names):
+                lean = "\n".join(batch) + "\n"
+                body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
+                expected = [decl.rsplit(" := by", 1)[0] + " := ..." for decl in batch]
+                snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+                self.assertEqual(snippets, expected)
+                exported = "@@leanquote-export 2\n" + "".join(
+                    "@@begin " + name + "\n@@axioms\n" +
+                    "".join("@@code " + line + "\n" for line in decl.splitlines()) + "@@end\n"
+                    for name, decl in zip(names, batch))
+                saved, _ = self.compile("", body.replace("[proof=false]",
+                    "[proof=false,file=Saved.leanquote]"), export=exported)
+                self.assertEqual(saved, expected)
 
     def test_where_proofs_are_hidden_before_the_fields(self):
         declarations = [
