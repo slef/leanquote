@@ -378,7 +378,7 @@ class ParsingTests(unittest.TestCase):
                 'def qualified : Lean.CoreM Unit := Lean.throwError "{ ordinary"\n'
                 'def plainMessage : Lean.MessageData := m!"oops"\n'
                 'def nonliteral : Lean.CoreM Unit := do\n'
-                '  let _ : Unit ← throwError plainMessage\n'
+                '  let _ ← (throwError plainMessage : Lean.CoreM Unit)\n'
                 '  let _ := "{ ordinary"\n  pure ()\n'
                 'def afterOrdinary : Nat := 42\n')
         snippets, _ = self.compile(lean, r"\leanquote{afterOrdinary}", olean=True)
