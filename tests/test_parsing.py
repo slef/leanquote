@@ -328,6 +328,22 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(snippets, ["def foo : Nat := 1"])
         self.assertIn("matches several declarations", output)
 
+    def test_standard_declaration_forms_and_required_suffixes(self):
+        declarations = [
+            "class abbrev Alias (α : Type) := Inhabited α",
+            "coinductive Pulse : Prop where\n  | step : Pulse → Pulse",
+            "instance (priority := 100) preferred : Inhabited Nat := ⟨0⟩",
+            "local instance localNat : Inhabited Nat := ⟨0⟩",
+            "scoped instance scopedNat : Inhabited Nat := ⟨0⟩",
+            "def loop : Option Nat := loop\npartial_fixpoint",
+        ]
+        lean = "namespace Scoped\n" + "\n".join(declarations) + "\nend Scoped\n"
+        names = ["Alias", "Pulse", "preferred", "localNat", "scopedNat", "loop"]
+        body = "".join(r"\leanquote[proof=false]{Scoped." + name + "}" for name in names)
+        snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, declarations)
+        self.compile(lean, r"\leanquote{abbrev}", success=False)
+
     def test_uncertain_term_proof_or_delimiter_keeps_every_source_line(self):
         declarations = [
             "theorem reference : True := True.intro",

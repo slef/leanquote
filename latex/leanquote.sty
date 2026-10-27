@@ -8,7 +8,8 @@
 %   \leanquote[file=Path/To/File.lean,options]{Name1, Name2, ...}   % explicit file
 %
 % A declaration is found by its `def`/`theorem`/... line in column 0 and runs while lines are
-% indented (or start with `|`, `termination_by`, `decreasing_by`, `deriving`); its doc comment
+% indented (or start with `|`, `termination_by`, `decreasing_by`, `deriving`,
+% `partial_fixpoint`, `monotonicity_by`); its doc comment
 % is shown with the `doc` option. Names may be short (`Tiles`) or qualified (`Abstract.Tiles`).
 % An unknown name is an error. If the file is newer than its compiled `.olean`
 % (under `project`/.lake/build/lib/lean/), LaTeX warns that it may not be what Lean checked.
@@ -987,7 +988,8 @@
 % ---------------------------------------------------------------- .lean files
 % A declaration starts at a line `[@[...]] [modifiers] def|theorem|... Name` in column 0, with
 % the doc comment and attribute lines just above it, and continues while lines are blank,
-% indented, or start with `|`, `termination_by`, `decreasing_by` or `deriving`.
+% indented, or start with `|`, `termination_by`, `decreasing_by`, `deriving`,
+% `partial_fixpoint` or `monotonicity_by`.
 \seq_new:N \l__leanquote_doc_seq
 \seq_new:N \l__leanquote_attr_seq
 \seq_new:N \l__leanquote_blank_seq
@@ -1033,7 +1035,8 @@
           { \seq_put_right:Nn \l__leanquote_blank_seq {#1} \bool_set_true:N \l__leanquote_consumed_bool }
           {
             \bool_set_eq:NN \l__leanquote_consumed_bool \l__leanquote_continuation_bool
-            \regex_match:nnT { \A ( \s | \| | termination_by | decreasing_by | deriving ) } {#1}
+            \regex_match:nnT
+              { \A ( \s | \| | (?:termination_by|decreasing_by|deriving|partial_fixpoint|monotonicity_by)(?:\s|\Z) ) } {#1}
               { \bool_set_true:N \l__leanquote_consumed_bool }
             \bool_if:NTF \l__leanquote_consumed_bool
               { \__leanquote_src_continue:n {#1} }
@@ -1178,8 +1181,9 @@
             \regex_extract_once:nVNTF
               { \A (?:@\[ [^\]]* \] \s*)*
                    (?:(?:public|private|protected|noncomputable|partial|unsafe|nonrec|meta) \s+)*
-                   (?:class \s+ inductive | def|theorem|lemma|abbrev|structure|inductive|
-                      instance|class|axiom|opaque)
+                   (?:class \s+ (?:inductive|abbrev) | def|theorem|lemma|abbrev|structure|inductive|coinductive|
+                      (?: (?:local|scoped) \s+ )? instance (?: \s* \( \s* priority \s* := [^)]* \) )? |
+                      class|axiom|opaque)
                    \s+ ((?: « .*? » | [^\s.:(\[\{]+ ) (?: \. (?: « .*? » | [^\s.:(\[\{]+ ) )*) }
               \l__leanquote_code_str \l__leanquote_decl_seq
               {
@@ -1859,12 +1863,12 @@
   \let\lst@ifleanquoteunicode\iffalse}
 \lstdefinelanguage{leanquote-lean}{
   % 1: keywords and commands
-  morekeywords={def,theorem,lemma,abbrev,structure,inductive,instance,class,where,fun,
+  morekeywords={def,theorem,lemma,abbrev,structure,inductive,coinductive,instance,class,where,fun,
     by,have,show,from,let,in,if,then,else,match,with,do,return,namespace,end,section,
     variable,open,import,noncomputable,private,protected,example,axiom,deriving,calc,
     universe,mutual,opaque,partial,unsafe,nonrec,extends,attribute,set_option,notation,
     infix,infixl,infixr,prefix,postfix,macro,syntax,module,public,meta,termination_by,
-    decreasing_by,at,only,using,forall,for,unless,while,try,catch,finally,mut,local,
+    decreasing_by,partial_fixpoint,monotonicity_by,at,only,using,forall,for,unless,while,try,catch,finally,mut,local,
     export,include,omit,scoped,prelude,nomatch,initialize,builtin_initialize,
     elab,elab_rules,macro_rules,declare_syntax_cat},
   % 2: sorts and common types of core Lean and Mathlib (add your own with morekeywords=[2]{...})
