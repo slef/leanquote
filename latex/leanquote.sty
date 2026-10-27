@@ -235,16 +235,12 @@
           }
         {'}
           {
-            % An apostrophe in an identifier is not a character-literal opener.
-            \str_set:Ne \l__leanquote_tail_str { \str_item:Nn #1 { \l__leanquote_scan_int - 1 } }
-            \regex_match:nVT { \A [\s(\[\{,:=]? \Z } \l__leanquote_tail_str
-              {
-                \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
-                \regex_extract_once:nVNTF { \A ' (?: [^'\\] | \\ . )+ ' }
-                  \l__leanquote_tail_str \l__leanquote_literal_seq
-                  { \str_set:Nn \l__leanquote_class_str {s}
-                    \bool_set_false:N \l__leanquote_interpolated_bool \__leanquote_mask_literal: } { }
-              }
+            % Identifier tokens, including apostrophes, are consumed together.
+            \str_set:Ne \l__leanquote_tail_str { \str_range:Nnn #1 { \l__leanquote_scan_int } {-1} }
+            \regex_extract_once:nVNTF { \A ' (?: [^'\\] | \\ . )+ ' }
+              \l__leanquote_tail_str \l__leanquote_literal_seq
+              { \str_set:Nn \l__leanquote_class_str {s}
+                \bool_set_false:N \l__leanquote_interpolated_bool \__leanquote_mask_literal: } { }
           }
       }
     \bool_if:NF \l__leanquote_literal_bool
@@ -276,8 +272,35 @@
                 \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_length_int
               }
           }
-          { \__leanquote_lex_plain: }
+          { \__leanquote_lex_identifier:N #1 }
       }
+  }
+\int_new:N \l__leanquote_identifier_pos_int
+\int_new:N \l__leanquote_identifier_cp_int
+\int_new:N \l__leanquote_identifier_end_int
+\cs_new_protected:Npn \__leanquote_lex_identifier:N #1
+  {
+    \int_set_eq:NN \l__leanquote_identifier_pos_int \l__leanquote_scan_int
+    \__leanquote_decode:NNN #1 \l__leanquote_identifier_pos_int \l__leanquote_identifier_cp_int
+    \__leanquote_id_first:nTF { \l__leanquote_identifier_cp_int }
+      {
+        \int_set_eq:NN \l__leanquote_identifier_end_int \l__leanquote_identifier_pos_int
+        \int_incr:N \l__leanquote_identifier_pos_int
+        \int_while_do:nNnn { \l__leanquote_identifier_pos_int } < { \str_count:N #1 + 1 }
+          {
+            \__leanquote_decode:NNN #1 \l__leanquote_identifier_pos_int \l__leanquote_identifier_cp_int
+            \__leanquote_id:nTF { \l__leanquote_identifier_cp_int }
+              { \int_set_eq:NN \l__leanquote_identifier_end_int \l__leanquote_identifier_pos_int }
+              { \int_set:Nn \l__leanquote_identifier_pos_int { \str_count:N #1 + 1 } }
+            \int_incr:N \l__leanquote_identifier_pos_int
+          }
+        \str_put_right:Ne \l__leanquote_code_str
+          { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_identifier_end_int } }
+        \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_identifier_end_int
+        \bool_set:Nn \l__leanquote_interpolated_bool
+          { \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_scan_int } } {!} }
+      }
+      { \__leanquote_lex_plain: }
   }
 \cs_new_protected:Npn \__leanquote_lex_plain:
   {
@@ -489,6 +512,22 @@
         \int_compare_p:n {8336 <= #1 <= 8348} ||
         \int_compare_p:n {7522 <= #1 <= 7530} ||
         \int_compare_p:n {#1 = 11388}
+      }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+
+\prg_new_conditional:Npnn \__leanquote_id_first:n #1 { TF }
+  {
+    \bool_if:nTF
+      {
+        \__leanquote_id_p:n {#1} &&
+        ! \int_compare_p:n {48 <= #1 <= 57} &&
+        ! \int_compare_p:n {#1 = 39} &&
+        ! \int_compare_p:n {#1 = 33} &&
+        ! \int_compare_p:n {#1 = 63} &&
+        ! \int_compare_p:n {8320 <= #1 <= 8348} &&
+        ! \int_compare_p:n {7522 <= #1 <= 7530} &&
+        ! \int_compare_p:n {#1 = 11388}
       }
       { \prg_return_true: } { \prg_return_false: }
   }

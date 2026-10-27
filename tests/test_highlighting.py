@@ -105,6 +105,21 @@ def nested : String := s!"outer {s!"inner {Nat.succ 1}"} tail"
         self.assert_paint(rendered, 'Nat', 2, (38/255, 128/255, 89/255))
         self.assert_paint(rendered, 'Nat', 3, (38/255, 128/255, 89/255))
 
+    def test_character_literals_touching_operators_keep_lexical_context(self):
+        code = ('def character : Unit → Char := fun _ =>'+chr(39)+chr(34)+chr(39)+'\n'
+                "def αname' : Nat := 1\n"
+                "theorem equation : (c : Char) → c = c\n"
+                "  |'a' => rfl\n"
+                "  | c => rfl\n"
+                "def afterCharacter : Nat := 2\n")
+        rendered = self.render(code, options=r"stringstyle=\color{orange}")
+        self.assert_paint(rendered, '"', 1, (1, .5, 0))
+        literal = [(token, color) for token, color, line in rendered
+                   if line == 4 and token.replace(" ", "").strip("'") == "a"]
+        self.assertTrue(literal, rendered)
+        self.assertTrue(all(color == (1, .5, 0) for _, color in literal), literal)
+        self.assert_paint(rendered, 'def', 6, (41/255, 110/255, 166/255))
+
     def test_character_literals_do_not_change_following_declarations(self):
         rendered = self.render("def quote : Char := '\"'\ndef afterCharacter : Nat := 1\n",
                                options=r"stringstyle=\color{orange}")

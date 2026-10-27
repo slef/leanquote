@@ -313,6 +313,17 @@ class ParsingTests(unittest.TestCase):
                 _, output = self.compile(ESCAPED_NAMES, r"\leanquote{" + name + "}", success=False)
                 self.assertRegex(output, r"not\s+(?:\(leanquote\)\s*)?found")
 
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_adjacent_character_literal_cannot_expose_verified_phantom(self):
+        lean = ('def character : Unit → Char := fun _ =>'+chr(39)+chr(34)+chr(39)+'\n'
+                'def text : String := "first\ndef phantom : Nat := 99\nlast"\n'
+                'def afterCharacter : Nat := 1\n')
+        _, output = self.compile(lean,
+            r"\leanquote[olean=Fixture.olean,verify=true]{phantom}", success=False, olean=True)
+        self.assertIn("not found", output)
+        snippets, _ = self.compile(lean, r"\leanquote{afterCharacter}")
+        self.assertEqual(snippets, ["def afterCharacter : Nat := 1"])
+
     def test_nested_comments_strings_and_documentation(self):
         snippets, output = self.compile(COMMENTS, r"\leanquote[doc]{phantom}\leanquote{text}")
         self.assertEqual(snippets, [
