@@ -403,6 +403,35 @@ class ParsingTests(unittest.TestCase):
                                 export=exported)
         self.assertEqual(saved, expected)
 
+    def test_proof_hiding_tracks_binding_and_match_scopes(self):
+        declarations = [
+            "theorem letEq : let p : Nat → Prop | _ => True; p 0 := by trivial",
+            "theorem haveEq : have p : Nat → Prop | _ => True; p 0 := by trivial",
+            "theorem letLambda : let_λ p := True; p := by trivial",
+            "theorem afterMatch : let p : Nat → Prop := fun n => match n with | _ => True; "
+            "(n : Nat) → p n\n  | _ => trivial",
+            "theorem multiLetEq :\n  let p : Nat → Prop\n    | 0 => True\n    | _ => True\n"
+            "  p 0 := by trivial",
+            "theorem outerMatch : match true with\n  | true => let p := True; p\n"
+            "  | false => True := by trivial",
+        ]
+        names = [declaration.split()[1] for declaration in declarations]
+        body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
+        expected = [declaration.rsplit(" := by", 1)[0] + " := ..."
+                    if " := by" in declaration else
+                    declaration.rsplit("\n  |", 1)[0] + "\n := ..."
+                    for declaration in declarations]
+        snippets, _ = self.compile("\n".join(declarations) + "\n", body,
+                                   olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, expected)
+        exported = "@@leanquote-export 2\n" + "".join(
+            "@@begin " + name + "\n@@axioms\n" +
+            "".join("@@code " + line + "\n" for line in declaration.splitlines()) + "@@end\n"
+            for name, declaration in zip(names, declarations))
+        saved, _ = self.compile("", body.replace("[proof=false]",
+                                "[proof=false,file=Saved.leanquote]"), export=exported)
+        self.assertEqual(saved, expected)
+
     def test_export_proof_hiding_uses_same_scanner(self):
         declaration = PROOFS.split("public theorem escaped", 1)[1].split("public theorem multiline", 1)[0].strip()
         declaration = "public theorem escaped" + declaration

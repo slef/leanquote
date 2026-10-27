@@ -128,10 +128,11 @@ does not need in order to check the statement; definitions keep their bodies:
 \end{latexsrc}
 \leanquote[proof=false]{tiling_coRE_complete}
 
-\noindent The proof starts at the first \texttt{:=} outside brackets, escaped identifiers,
-string and character literals (including interpolation), line comments, and nested block comments.
-Equation-style proofs starting with \texttt{|} on a new line are also hidden.
-Default parameter values, such as
+\noindent Proof hiding tracks brackets, local \texttt{let}/\texttt{have} bindings, and
+\texttt{match} expressions using lexical tokens and layout. Their assignments and alternatives
+remain part of the statement; the theorem's proof assignment or equation-style body is replaced.
+Escaped identifiers, string and character literals (including interpolation), line comments,
+and nested block comments do not act as proof delimiters. Default parameter values, such as
 \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)}, are not mistaken for it.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
 
