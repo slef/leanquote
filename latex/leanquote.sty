@@ -1912,14 +1912,109 @@
       }
     \__leanquote_render_word:
   }
+
+% listings measures replacement columns, while the lexical map describes source
+% columns. Update their difference only after the replacement itself is output.
+% These counters survive TeX-mode interruptions; a stack isolates nested listings.
+\int_new:N \g__leanquote_render_offset_int
+\int_new:N \g__leanquote_render_pending_int
+\int_new:N \g__leanquote_render_lineno_int
+\seq_new:N \g__leanquote_render_offsets_seq
+\str_new:N \l__leanquote_literate_source_str
+\int_new:N \l__leanquote_literate_index_int
+\int_new:N \l__leanquote_literate_cp_int
+\int_new:N \l__leanquote_literate_start_int
+\int_new:N \l__leanquote_literate_end_int
+\int_new:N \l__leanquote_tab_target_int
+\cs_new_eq:NN \__leanquote_literate: \lst@Literate
+\cs_new_eq:NN \__leanquote_tab: \lst@ProcessTabulator
+\cs_new_protected:Npn \__leanquote_render_literate_define:nnn #1#2#3
+  { \__leanquote_literate: {#1}{#2}{#3 \relax \__leanquote_render_literate:n {#1} } }
+\cs_new_protected:Npn \__leanquote_render_offset_begin:
+  {
+    \seq_gput_right:Ne \g__leanquote_render_offsets_seq
+      { { \int_use:N \g__leanquote_render_lineno_int }
+        { \int_use:N \g__leanquote_render_offset_int }
+        { \int_use:N \g__leanquote_render_pending_int } }
+    \int_gset:Nn \g__leanquote_render_lineno_int {-1}
+    \int_gzero:N \g__leanquote_render_offset_int
+    \int_gzero:N \g__leanquote_render_pending_int
+  }
+\cs_new_protected:Npn \__leanquote_render_offset_end:
+  {
+    \lst@ifleanquotelex
+      \seq_gpop_right:NN \g__leanquote_render_offsets_seq \l_tmpa_tl
+      \int_gset:Nn \g__leanquote_render_lineno_int { \tl_item:Vn \l_tmpa_tl {1} }
+      \int_gset:Nn \g__leanquote_render_offset_int { \tl_item:Vn \l_tmpa_tl {2} }
+      \int_gset:Nn \g__leanquote_render_pending_int { \tl_item:Vn \l_tmpa_tl {3} }
+    \fi
+  }
+\cs_new_protected:Npn \__leanquote_render_offset_line:
+  {
+    \int_compare:nNnF { \g__leanquote_render_lineno_int } = { \lst@lineno }
+      {
+        \int_gset:Nn \g__leanquote_render_lineno_int { \lst@lineno }
+        \int_gzero:N \g__leanquote_render_offset_int
+        \int_gzero:N \g__leanquote_render_pending_int
+      }
+  }
+\cs_new_protected:Npn \__leanquote_render_offset_commit:
+  {
+    \lst@ifleanquotelex
+      \int_gadd:Nn \g__leanquote_render_offset_int { \g__leanquote_render_pending_int }
+      \int_gzero:N \g__leanquote_render_pending_int
+    \fi
+  }
+\cs_new_protected:Npn \__leanquote_render_literate:n #1
+  {
+    \__leanquote_render_offset_line:
+    \lst@DefOther \l_tmpa_tl {#1}
+    \str_set:NV \l__leanquote_literate_source_str \l_tmpa_tl
+    \int_set:Nn \l__leanquote_literate_start_int
+      { \lst@column - \lst@pos + \lst@gobble + \g__leanquote_render_offset_int }
+    \int_set_eq:NN \l__leanquote_literate_end_int \l__leanquote_literate_start_int
+    \int_set:Nn \l__leanquote_literate_index_int {1}
+    \int_while_do:nNnn { \l__leanquote_literate_index_int } <
+      { \str_count:N \l__leanquote_literate_source_str + 1 }
+      {
+        \__leanquote_decode:NNN \l__leanquote_literate_source_str
+          \l__leanquote_literate_index_int \l__leanquote_literate_cp_int
+        \int_compare:nNnTF { \l__leanquote_literate_cp_int } = {9}
+          { \int_add:Nn \l__leanquote_literate_end_int
+              { \lst@tabsize - \int_mod:nn { \l__leanquote_literate_end_int } { \lst@tabsize } } }
+          { \int_incr:N \l__leanquote_literate_end_int }
+        \int_incr:N \l__leanquote_literate_index_int
+      }
+    \int_gset:Nn \g__leanquote_render_pending_int
+      { \l__leanquote_literate_end_int - \l__leanquote_literate_start_int - \lst@length }
+    % A zero-column replacement bypasses OutputToken entirely.
+    \int_compare:nNnT { \lst@length } = {0} { \__leanquote_render_offset_commit: }
+  }
+\cs_new_protected:Npn \__leanquote_render_tab:
+  {
+    \lst@ifleanquotelex
+      \lst@XPrintToken
+      \__leanquote_render_offset_line:
+      \int_set:Nn \l__leanquote_tab_target_int
+        { \lst@column - \lst@pos + \lst@gobble + \g__leanquote_render_offset_int }
+      \int_add:Nn \l__leanquote_tab_target_int
+        { \lst@tabsize - \int_mod:nn { \l__leanquote_tab_target_int } { \lst@tabsize } }
+      \__leanquote_tab:
+      \int_gset:Nn \g__leanquote_render_offset_int
+        { \l__leanquote_tab_target_int - \lst@column + \lst@pos - \lst@gobble }
+    \else
+      \__leanquote_tab:
+    \fi
+  }
 \cs_new_protected:Npn \__leanquote_render_style:
   {
     \lst@ifleanquotelex
+      \__leanquote_render_offset_line:
       \bool_if:NT \l__leanquote_render_file_bool
         { \str_set:Ne \l__leanquote_render_classes_str
             { \seq_item:Nn \l__leanquote_render_maps_seq { \lst@lineno } } }
       \str_set:Ne \l__leanquote_class_str
-        { \str_item:Nn \l__leanquote_render_classes_str { \lst@column - \lst@pos + \lst@gobble + 1 } }
+        { \str_item:Nn \l__leanquote_render_classes_str { \lst@column - \lst@pos + \lst@gobble + \g__leanquote_render_offset_int + 1 } }
       \str_case:Vn \l__leanquote_class_str
         {
           {s} { \cs_set_eq:NN \lst@thestyle \lst@stringstyle }
@@ -2062,6 +2157,7 @@
 \cs_new_protected:Npn \__leanquote_render_init:
   {
     \lst@ifleanquotelex
+      \__leanquote_render_offset_begin:
       \__leanquote_lex_reset:
       \__leanquote_render_escapes:
       \clist_clear:N \l__leanquote_native_clist
@@ -2095,7 +2191,18 @@
             \__leanquote_render_inline_end: }
       \fi
       \cs_set_protected:Npn \lst@OutputToken
-        { \__leanquote_render_style: \__leanquote_render_output: }
+        { \__leanquote_render_style: \__leanquote_render_output:
+          \__leanquote_render_offset_commit: }
+      \cs_set_protected:Npn \lst@Literate ##1##2##3
+        {
+          \lst@ifleanquotelex
+            \exp_after:wN \__leanquote_render_literate_define:nnn
+          \else
+            \exp_after:wN \__leanquote_literate:
+          \fi
+          {##1}{##2}{##3}
+        }
+      \cs_set_eq:NN \lst@ProcessTabulator \__leanquote_render_tab:
       % Punctuation may straddle lexical classes (:= followed by a quote,
       % or a comment opener); emit it one character at a time.
       \cs_set_protected:Npn \lst@ProcessOther ##1
@@ -2103,6 +2210,7 @@
     \fi
   }
 \lst@AddToHook { Init } { \__leanquote_render_init: }
+\lst@AddToHook { DeInit } { \__leanquote_render_offset_end: }
 \cs_new_protected:Npn \__leanquote_render_chars:
   {
     \lst@ifleanquotelex

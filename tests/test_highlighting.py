@@ -101,6 +101,44 @@ note}@*) -/ := by trivial
         self.assert_paint(rendered, 'def', 1, (41/255, 110/255, 166/255))
         self.assert_paint(rendered, 'Nat', 1, (38/255, 128/255, 89/255))
 
+    def test_literate_replacement_widths_preserve_following_colors(self):
+        code = ("theorem arrows : True -> True -> True -> True -> True -> True /- trailing -/ := by\n"
+                "  intros a b c d e\n  exact a\n"
+                'def text : String := "=>" -- afterString\n')
+        options = r"literate={->}{{$\to$}}1 {=>}{{$\mapsto$}}4"
+        rendered = self.render(code, options=options)
+        self.assert_paint(rendered, 'trailing', 1, (.4, .4, .4))
+        self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'afterString', 4, (.4, .4, .4))
+        rendered = self.render(code, body=r"\leanquote[file=Fixture.lean,verify=false," +
+                               options + r"]{arrows,text}")
+        self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'afterString', 5, (.4, .4, .4))
+
+    def test_zero_width_replacement_and_tabs_keep_source_alignment(self):
+        rendered = self.render('def text : String := "xx" -- afterZero\n'
+                               "theorem arrow : True /- ->\tcomment -/ := by trivial\n",
+                               options=r"literate={xx}{}0 {->}{{$\to$}}1")
+        self.assert_paint(rendered, 'afterZero', 1, (.4, .4, .4))
+        self.assert_paint(rendered, 'comment', 2, (.4, .4, .4))
+        self.assert_paint(rendered, 'by', 2, (41/255, 110/255, 166/255))
+
+    def test_literate_offsets_survive_tex_escapes_and_reset_for_following_listings(self):
+        code = (r"theorem arrows : True -> True -> True -> True -> True -> True /- "
+                r"(*@\textbf{note}@*)"
+                " -/ := by intros a b c d e; exact a\n")
+        body = r"""
+\lstinputlisting[style=leanquote,escapeinside={(*@}{@*)},literate={->}{{$\to$}}1]{Fixture.lean}
+\begin{lstlisting}[style=leanquote]
+def control : String := "sorry" -- afterControl
+\end{lstlisting}
+"""
+        rendered = self.render(code, body=body)
+        self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+        self.assert_paint(rendered, 'exact', 1, (136/255, 84/255, 150/255))
+        self.assert_paint(rendered, 'sorry', 1, (153/255, 77/255, 0))
+        self.assert_paint(rendered, 'afterControl', 1, (.4, .4, .4))
+
     def test_raw_strings_and_hash_counts_keep_comment_text_literal(self):
         rendered = self.render('''def raw : String := r##"first "# sorry Nat /- --
 last"##
