@@ -325,6 +325,11 @@ srcDir = "lib-src"
                          "TeX is not installed")
     def test_latex_proof_hiding_preserves_exported_result_types(self):
         engine = os.environ.get("LEANQUOTE_TEX_ENGINE", "pdflatex")
+        # Other tests restore identical source bytes with newer timestamps.
+        # Lake may reuse their hash-identical artifact; force a fresh compilation
+        # so this test can also assert the timestamp-based verification result.
+        (self.work / self.headers["@@olean"]).unlink(missing_ok=True)
+        run(self.work, self.shell, native_path(WRAPPER), "Demo")
         shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
         names = ["branchReturn", "branchMatch", "whereProof"]
         body = "\n".join(
