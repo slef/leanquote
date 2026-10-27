@@ -123,6 +123,44 @@ note}@*) -/ := by trivial
         self.assert_paint(rendered, 'comment', 2, (.4, .4, .4))
         self.assert_paint(rendered, 'by', 2, (41/255, 110/255, 166/255))
 
+    def test_starred_literate_preserves_literals_and_nested_comments(self):
+        code = ('def text : String := "->"\n'
+                "theorem arrow : True -> True := by intro h; exact h\n"
+                "/- -> /- -> -/ -> -/\n"
+                "def raw : String := r#\"->\"# -- ->\n")
+        options = r"literate=*{->}{{\typeout{LQ-REPLACED}$\to$}}1"
+        for body in [
+            r"\lstinputlisting[style=leanquote," + options + "]{Fixture.lean}",
+            "\\begin{lstlisting}[style=leanquote," + options + "]\n" + code + "\\end{lstlisting}",
+            r"\leanquote[file=Fixture.lean,verify=false," + options + "]{text,arrow,raw}",
+        ]:
+            with self.subTest(body=body):
+                _, output = self.compile_tex({"Fixture.lean": code}, body)
+                self.assertEqual(output.count("LQ-REPLACED"), 1, output[-2000:])
+
+    def test_texcl_executes_only_real_line_comments(self):
+        code = ('def text : String := "-- \\\\LQannotation"\n'
+                '/- -- \\LQannotation /- nested -/ -/\n'
+                "def value : Nat := 1 -- \\LQannotation\n"
+                "def after : Nat := 2\n")
+        for body in [
+            r"\lstinputlisting[style=leanquote,texcl=true]{Fixture.lean}",
+            "\\begin{lstlisting}[style=leanquote,texcl=true,gobble=2]\n" +
+            "".join("  " + line + "\n" for line in code.splitlines()) + "\\end{lstlisting}",
+            r"\leanquote[file=Fixture.lean,verify=false,texcl=true]{text,value,after}",
+        ]:
+            with self.subTest(body=body):
+                _, output = self.compile_tex({"Fixture.lean": code}, body,
+                    preamble=r"\newcommand{\LQannotation}{\typeout{LQ-TEXCL}\textbf{annotation}}")
+                self.assertEqual(output.count("LQ-TEXCL"), 1, output[-2000:])
+        rendered = self.render(code.replace(r"\LQannotation", r"\textbf{annotation}"),
+                               options="texcl=true")
+        self.assert_paint(rendered, 'def', 4, (41/255, 110/255, 166/255))
+        _, output = self.compile_tex({"Fixture.lean": "// \\LQannotation\n"},
+            r"\lstinputlisting[style=leanquote,morecomment={[l]{//}},texcl=true]{Fixture.lean}",
+            preamble=r"\newcommand{\LQannotation}{\typeout{LQ-TEXCL}\textbf{annotation}}")
+        self.assertEqual(output.count("LQ-TEXCL"), 1)
+
     def test_literate_offsets_survive_tex_escapes_and_reset_for_following_listings(self):
         code = (r"theorem arrows : True -> True -> True -> True -> True -> True /- "
                 r"(*@\textbf{note}@*)"

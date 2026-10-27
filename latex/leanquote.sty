@@ -413,7 +413,7 @@
                            \int_incr:N \l__leanquote_comment_int \__leanquote_mask_pair: }
                     {--}
                       {
-                        \str_set:Nn \l__leanquote_class_str {c}
+                        \str_set:Nn \l__leanquote_class_str {l}
                         \str_put_right:Ne \l__leanquote_code_str
                           { \prg_replicate:nn { \l__leanquote_length_int - \l__leanquote_scan_int + 1 } { \c_space_tl } }
                         \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_length_int
@@ -1675,7 +1675,7 @@
     clear,contrapose,fail_if_success},
   % 4: sorry, in red
   morekeywords=[4]{sorry,admit},
-  sensitive=true, alsoletter={'!?}, leanquotelex}
+  sensitive=true, alsoletter={'!?}, morecomment=[l]{--}, leanquotelex}
 \definecolor{leanquotekeyword}{RGB}{41,110,166}
 \definecolor{leanquotetype}{RGB}{38,128,89}
 \definecolor{leanquotetactic}{RGB}{136,84,150}
@@ -1864,6 +1864,7 @@
     \bool_set:Nn \l__leanquote_escape_tex_bool
       { ! \str_if_empty_p:N \l__leanquote_escape_start_str }
     \lst@ifmathescape \bool_set_true:N \l__leanquote_escape_tex_bool \fi
+    \lst@iftexcl \bool_set_true:N \l__leanquote_escape_tex_bool \fi
   }
 \cs_new_protected:Npn \__leanquote_render_skip:n #1
   {
@@ -1977,9 +1978,44 @@
 \int_new:N \l__leanquote_literate_end_int
 \int_new:N \l__leanquote_tab_target_int
 \cs_new_eq:NN \__leanquote_literate: \lst@Literate
+\cs_new_eq:NN \__leanquote_cdef: \lst@CDef
 \cs_new_eq:NN \__leanquote_tab: \lst@ProcessTabulator
 \cs_new_protected:Npn \__leanquote_render_literate_define:nnn #1#2#3
-  { \__leanquote_literate: {#1}{#2}{#3 \relax \__leanquote_render_literate:n {#1} } }
+  {
+    % Keep the native replacement factory; only its mode test needs Lean's
+    % richer literal/comment classification.
+    \ifx \relax #2 \@empty \else
+      \cs_set_eq:NN \lst@CDef \__leanquote_render_literate_cdef:nnnnn
+    \fi
+    \__leanquote_literate: {#1}{#2}{#3 \relax \__leanquote_render_literate:n {#1} }
+  }
+\cs_new_protected:Npn \__leanquote_render_literate_cdef:nnnnn #1#2#3#4#5
+  {
+    \cs_set_eq:NN \lst@CDef \__leanquote_cdef:
+    \tl_set:Nn \l_tmpa_tl {#4}
+    \tl_put_left:Nn \l_tmpa_tl { \__leanquote_render_mode_begin: }
+    \tl_replace_all:Nnn \l_tmpa_tl
+      { \ifx \lst@next \@empty }
+      { \__leanquote_render_mode_end: \ifx \lst@next \@empty }
+    \exp_args:NV \__leanquote_render_cdef_action:nnnnn \l_tmpa_tl {#1}{#2}{#3}{#5}
+  }
+\cs_new_protected:Npn \__leanquote_render_cdef_action:nnnnn #1#2#3#4#5
+  { \__leanquote_cdef: {#2}#3{#4}{#1}#5 }
+\bool_new:N \l__leanquote_render_mode_bool
+\cs_new_protected:Npn \__leanquote_render_mode_begin:
+  {
+    \lst@XPrintToken
+    \__leanquote_render_class:
+    \cs_set_eq:NN \__leanquote_render_saved_ifmode: \lst@ifmode
+    \bool_set:Nn \l__leanquote_render_mode_bool
+      { \str_if_eq_p:Vn \l__leanquote_class_str {s} ||
+        \str_if_eq_p:Vn \l__leanquote_class_str {c} ||
+        \str_if_eq_p:Vn \l__leanquote_class_str {l} }
+    \bool_if:NT \l__leanquote_render_mode_bool
+      { \cs_set_eq:NN \lst@ifmode \iftrue }
+  }
+\cs_new_protected:Npn \__leanquote_render_mode_end:
+  { \cs_set_eq:NN \lst@ifmode \__leanquote_render_saved_ifmode: }
 \cs_new_protected:Npn \__leanquote_render_offset_begin:
   {
     \seq_gput_right:Ne \g__leanquote_render_offsets_seq
@@ -2056,19 +2092,25 @@
       \__leanquote_tab:
     \fi
   }
+\cs_new_protected:Npn \__leanquote_render_class:
+  {
+    \__leanquote_render_offset_line:
+    \bool_if:NT \l__leanquote_render_file_bool
+      { \str_set:Ne \l__leanquote_render_classes_str
+          { \seq_item:Nn \l__leanquote_render_maps_seq { \lst@lineno } } }
+    \str_set:Ne \l__leanquote_class_str
+      { \str_item:Nn \l__leanquote_render_classes_str
+          { \lst@column - \lst@pos + \lst@gobble + \g__leanquote_render_offset_int + 1 } }
+  }
 \cs_new_protected:Npn \__leanquote_render_style:
   {
     \lst@ifleanquotelex
-      \__leanquote_render_offset_line:
-      \bool_if:NT \l__leanquote_render_file_bool
-        { \str_set:Ne \l__leanquote_render_classes_str
-            { \seq_item:Nn \l__leanquote_render_maps_seq { \lst@lineno } } }
-      \str_set:Ne \l__leanquote_class_str
-        { \str_item:Nn \l__leanquote_render_classes_str { \lst@column - \lst@pos + \lst@gobble + \g__leanquote_render_offset_int + 1 } }
+      \__leanquote_render_class:
       \str_case:Vn \l__leanquote_class_str
         {
           {s} { \cs_set_eq:NN \lst@thestyle \lst@stringstyle }
           {c} { \cs_set_eq:NN \lst@thestyle \lst@commentstyle }
+          {l} { \cs_set_eq:NN \lst@thestyle \lst@commentstyle }
           {i} { \cs_set_eq:NN \lst@thestyle \lst@identifierstyle }
         }
     \fi
@@ -2083,6 +2125,29 @@
 \cs_new_eq:NN \__leanquote_render_output: \lst@OutputToken
 \cs_new_eq:NN \__leanquote_render_inline_end: \lst@InlineGJEnd
 \cs_new_eq:NN \__leanquote_render_inline_m: \lst@InlineM
+\cs_new_eq:NN \__leanquote_render_begin_comment: \lst@BeginComment
+\cs_new_eq:NN \__leanquote_render_line_comment_define: \lst@CommentDM@l
+\cs_new_protected:Npn \__leanquote_render_line_comment_define:w #1#2 \@empty #3#4#5
+  {
+    \lst@DefOther \l_tmpa_tl {#2}
+    \str_if_eq:eeTF { \l_tmpa_tl } {--}
+      {
+        \__leanquote_render_line_comment_define: #1#2 \@empty
+          \__leanquote_render_comment:nnw {#4}{#5}
+      }
+      { \__leanquote_render_line_comment_define: #1#2 \@empty #3{#4}{#5} }
+  }
+\cs_new_protected:Npn \__leanquote_render_comment:nnw #1#2#3 \@empty
+  {
+    % Native line-comment mode supplies texcl and its normal hooks. Only
+    % enter it at an opener identified by the Lean lexer, never inside a
+    % string, escaped identifier, or nested block comment.
+    \lst@XPrintToken
+    \__leanquote_render_class:
+    \str_if_eq:VnTF \l__leanquote_class_str {l}
+      { \__leanquote_render_begin_comment: {#1}{#2}#3 \@empty }
+      { \lst@CArgEmpty #3 \@empty }
+  }
 \cs_new_protected:Npn \__leanquote_render_inline_content:nn #1#2
   {
     \__leanquote_render_prepare:n {#2}
@@ -2210,6 +2275,7 @@
       \__leanquote_render_offset_begin:
       \__leanquote_lex_reset:
       \__leanquote_render_escapes:
+      \cs_set_eq:NN \lst@CommentDM@l \__leanquote_render_line_comment_define:w
       \clist_clear:N \l__leanquote_native_clist
       \bool_set_false:N \l__leanquote_render_file_bool
       \str_clear:N \l__leanquote_render_classes_str
