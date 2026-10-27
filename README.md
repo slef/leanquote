@@ -62,7 +62,8 @@ shell escape:
 - **Finding a declaration.** It starts at its `def`/`theorem`/`abbrev`/... line in column 0
   (with any attribute lines, and the doc comment if `doc` is set), and continues while lines are
   blank, indented, or start with `|`, `termination_by`, `decreasing_by` or `deriving`. This
-  matches the standard Lean layout. Names may be short (`Tiles`) or qualified (`TranslationTiling.Abstract.Tiles`); a
+  matches the standard Lean layout, including `class inductive` declarations.
+  Names may be short (`Tiles`) or qualified (`TranslationTiling.Abstract.Tiles`); a
   qualified name matches a declaration inside the corresponding `namespace`. The requested name
   must be the full name or a dotted suffix of it, including escaped components such as
   `«A B».foo`. Nested comments and strings are skipped when

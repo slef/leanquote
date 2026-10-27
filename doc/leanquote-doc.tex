@@ -263,14 +263,16 @@ Lean code. A declaration starts at a line in column~0 of the form
 \texttt{[@[\meta{attributes}]] [\meta{modifiers}] \meta{keyword} \meta{name} \dots}
 \end{center}
 where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \texttt{abbrev},
-\texttt{structure}, \texttt{inductive}, \texttt{instance}, \texttt{class}, \texttt{axiom},
-\texttt{opaque}, and the modifiers are \texttt{public}, \texttt{private}, \texttt{protected},
+\texttt{structure}, \texttt{inductive}, \texttt{instance}, \texttt{class},
+\texttt{class inductive}, \texttt{axiom}, \texttt{opaque}, and the modifiers are
+\texttt{public}, \texttt{private}, \texttt{protected},
 \texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}, \texttt{meta}.
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
 Nested comments and literals are skipped when recognizing declarations. Bracketed terms,
 including syntax quotations, stay within their enclosing declaration.
 Comments are omitted from the import block, including inline and multiline comments.
-The header may include \texttt{module} or \texttt{prelude}, and import commands may span lines.
+The header may include \texttt{module} or \texttt{prelude}; import commands, including
+\texttt{import all}, may span lines and comments.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
 \texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
@@ -476,9 +478,11 @@ authors on presenting the formal statements of machine-checked results to human 
 \item[0.19 (2026-10-26)] Lean-aware highlighting for raw/interpolated strings, characters,
   escaped identifiers, and expanded vocabulary; configurable literal color. Distinguish
   known interpolators from ordinary bang functions. Fix Unicode order/scope, escaped names,
-  quoted commands, split imports, and failed-build verification. Preserve local bindings,
-  equations, branching \texttt{do} blocks, and exception handlers when hiding proofs;
-  hide \texttt{where} proofs. Respect indentation, line-selection context, TeX escapes,
+  quoted commands, \texttt{class inductive} lookup, split imports (including \texttt{all}),
+  and failed-build verification. Preserve local bindings, equations, branching \texttt{do}
+  blocks, and exception handlers when hiding proofs; close inner control-flow scopes at
+  the next match alternative and hide \texttt{where} proofs. Respect indentation and
+  \opt{gobble}, line-selection context, TeX escapes,
   trailing TeX after listing environments, starred replacements, replacement widths,
   \opt{texcl}, and \opt{showstringspaces}. Preserve snapshot tabs, normalize exported names,
   and reject unsafe metadata.
