@@ -2150,6 +2150,24 @@
 \cs_new_eq:NN \__leanquote_literate: \lst@Literate
 \cs_new_eq:NN \__leanquote_cdef: \lst@CDef
 \cs_new_eq:NN \__leanquote_tab: \lst@ProcessTabulator
+\cs_new_eq:NN \__leanquote_space: \lst@ProcessSpace
+\cs_new_protected:Npn \__leanquote_render_space:
+  {
+    \cs_set_eq:NN \__leanquote_saved_space: \lst@outputspace
+    \cs_set_eq:NN \__leanquote_saved_keepspaces: \lst@ifkeepspaces
+    \lst@ifshowstringspaces
+      \lst@XPrintToken
+      \__leanquote_render_class:
+      \str_if_eq:VnT \l__leanquote_class_str {s}
+        {
+          \lst@keepspacestrue
+          \cs_set_eq:NN \lst@outputspace \lst@visiblespace
+        }
+    \fi
+    \__leanquote_space:
+    \cs_set_eq:NN \lst@outputspace \__leanquote_saved_space:
+    \cs_set_eq:NN \lst@ifkeepspaces \__leanquote_saved_keepspaces:
+  }
 \cs_new_protected:Npn \__leanquote_render_literate_define:nnn #1#2#3
   {
     % Keep the native replacement factory; only its mode test needs Lean's
@@ -2490,6 +2508,7 @@
           {##1}{##2}{##3}
         }
       \cs_set_eq:NN \lst@ProcessTabulator \__leanquote_render_tab:
+      \cs_set_eq:NN \lst@ProcessSpace \__leanquote_render_space:
       % Punctuation may straddle lexical classes (:= followed by a quote,
       % or a comment opener); emit it one character at a time.
       \cs_set_protected:Npn \lst@ProcessOther ##1

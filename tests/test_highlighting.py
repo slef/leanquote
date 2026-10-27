@@ -161,6 +161,31 @@ note}@*) -/ := by trivial
             preamble=r"\newcommand{\LQannotation}{\typeout{LQ-TEXCL}\textbf{annotation}}")
         self.assertEqual(output.count("LQ-TEXCL"), 1)
 
+    def test_visible_string_spaces_respect_lexical_boundaries_and_scope(self):
+        code = ('def text : String := "a  b"\n'
+                'def raw : String := r#"a b"#\n'
+                "def character : Char := ' '\n"
+                'def interpolated : String := s!"a {Nat.succ 1} b"\n'
+                '-- a b\n'
+                'def after : Nat := 1\n')
+        log = r"""
+\makeatletter
+\lst@AddToHook{OutputBox}{\ifx\lst@outputspace\lst@visiblespace
+  \typeout{LQ-VISIBLE-SPACE}\fi}
+\makeatother
+"""
+        for options in ["showstringspaces=true", "showstringspaces=true,keepspaces=false"]:
+            for body in [
+                r"\lstinputlisting[style=leanquote," + options + "]{Fixture.lean}",
+                "\\begin{lstlisting}[style=leanquote," + options + "]\n" + code + "\\end{lstlisting}",
+                r"\leanquote[file=Fixture.lean,verify=false," + options + "]{text,raw,character,interpolated,after}",
+            ]:
+                with self.subTest(options=options, body=body):
+                    _, output = self.compile_tex({"Fixture.lean": code}, body + "\n" +
+                        r"\lstinputlisting[style=leanquote,showstringspaces=false]{Fixture.lean}",
+                        preamble=log)
+                    self.assertEqual(output.count("LQ-VISIBLE-SPACE"), 6, output[-2000:])
+
     def test_literate_offsets_survive_tex_escapes_and_reset_for_following_listings(self):
         code = (r"theorem arrows : True -> True -> True -> True -> True -> True /- "
                 r"(*@\textbf{note}@*)"
@@ -196,6 +221,21 @@ def nested : String := s!"outer {s!"inner {Nat.succ 1}"} tail"
         self.assert_paint(rendered, 'Nat', 1, (1, .5, 0))
         self.assert_paint(rendered, 'Nat', 2, (38/255, 128/255, 89/255))
         self.assert_paint(rendered, 'Nat', 3, (38/255, 128/255, 89/255))
+
+    def test_builtin_message_interpolation_and_plain_reference_strings(self):
+        rendered = self.render(
+            'import Lean\nopen Lean\n'
+            'def message : CoreM Unit := do\n'
+            '  dbg_trace "literal {Nat.succ 1} sorry"\n'
+            '  throwErrorAt (Syntax.mkStrLit "{ ordinary") "literal {Nat.succ 1} sorry"\n'
+            'def qualified : CoreM Unit := Lean.throwError "{ literal"\n'
+            'def after : Nat := 1\n')
+        for line in [4, 5]:
+            self.assert_paint(rendered, 'Nat', line, (38/255, 128/255, 89/255))
+            self.assert_paint(rendered, 'sorry', line, (153/255, 77/255, 0))
+        self.assert_paint(rendered, 'ordinary', 5, (153/255, 77/255, 0))
+        self.assert_paint(rendered, 'literal', 6, (153/255, 77/255, 0))
+        self.assert_paint(rendered, 'def', 7, (41/255, 110/255, 166/255))
 
     def test_character_literals_touching_operators_keep_lexical_context(self):
         code = ('def character : Unit → Char := fun _ =>'+chr(39)+chr(34)+chr(39)+'\n'
