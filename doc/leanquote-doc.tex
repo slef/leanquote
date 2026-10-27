@@ -119,21 +119,21 @@ corresponding \texttt{namespace}, by its full name or a dotted suffix. Namespace
 scope are tracked, including escaped components such as \texttt{«A B».foo}. An unknown name
 is an error; an ambiguous short name warns and uses the first match.
 
-With \opt{proof=false}, theorems and lemmas are shown without their proofs, which the reader
-does not need in order to check the statement; definitions keep their bodies:
+With \opt{proof=false}, v3 exports supply Lean-derived theorem and lemma statements,
+preserving the author's notation and parameter defaults. For example, from the packaged export:
 
 \begin{latexsrc}
-\leanquote[proof=false]{tiling_coRE_complete}
+\leanquote[file=Abstract.leanquote,proof=false]{tiling_coRE_complete}
 \end{latexsrc}
-\leanquote[proof=false]{tiling_coRE_complete}
+\leanquote[file=../example/Abstract.leanquote,root=../example/,proof=false]{tiling_coRE_complete}
 
-\noindent Proof hiding preserves local \texttt{let}/\texttt{have} bindings,
-\texttt{match} expressions, and \texttt{do} blocks in the statement, including monadic
-bindings and \texttt{if let} branches.
-Brackets, literals, comments, escaped names, and default parameter values such as
-\texttt{(k :} $\mathbb{N}$ \texttt{:= 3)} do not act as proof delimiters.
-A \texttt{where} proof is omitted as a whole.
-Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
+\noindent Source-only quotes and older exports use conservative \LaTeX{} proof hiding.
+After simple signatures, \texttt{by} proofs and single references can be hidden.
+Unparenthesized term-control constructs, equation or \texttt{where} proofs, and ambiguous
+term proofs stay complete, with a warning. A v3 theorem without a
+prepared statement also stays complete. This warning does not change verification marks.
+Definitions always keep their bodies. Set \opt{proof=false} in \cs{leanquotesetup} to request
+statement-only output throughout.
 
 With the \opt{doc} option, the doc comment is included:
 
@@ -155,7 +155,7 @@ Option & Default & Meaning \\
 \opt{file=}\meta{path} & current file & file to quote; per-call overrides leave the default unchanged \\
 \opt{doc} & false & also show each declaration's doc comment \\
 \opt{imports} & false & prepend the import block once; an empty name list quotes only imports \\
-\opt{proof} & true & with \opt{proof=false}, theorem and lemma bodies are replaced by \texttt{:= ...} \\
+\opt{proof} & true & with \opt{proof=false}, request statement-only theorem/lemma output; keep complete text and warn when unavailable \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
 \opt{boxback} & \texttt{black!3} & background color of the box \\
 \opt{boxframe} & \texttt{black!45} & border color of the box and logo outline \\
@@ -263,18 +263,20 @@ Lean code. A declaration starts at a line in column~0 of the form
 \texttt{[@[\meta{attributes}]] [\meta{modifiers}] \meta{keyword} \meta{name} \dots}
 \end{center}
 where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \texttt{abbrev},
-\texttt{structure}, \texttt{inductive}, \texttt{instance}, \texttt{class},
-\texttt{class inductive}, \texttt{axiom}, \texttt{opaque}, and the modifiers are
+\texttt{structure}, \texttt{inductive}, \texttt{coinductive}, \texttt{instance}, \texttt{class},
+\texttt{class inductive}, \texttt{class abbrev}, \texttt{axiom}, \texttt{opaque}, and the modifiers are
 \texttt{public}, \texttt{private}, \texttt{protected},
 \texttt{noncomputable}, \texttt{partial}, \texttt{unsafe}, \texttt{nonrec}, \texttt{meta}.
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
+Named instances may also use \texttt{local}, \texttt{scoped}, or a priority annotation.
 Nested comments and literals are skipped when recognizing declarations. Bracketed terms,
 including syntax quotations, stay within their enclosing declaration.
 The import block contains only header commands, with comments omitted and spacing normalized.
 The header may include \texttt{module} or \texttt{prelude}; import commands, including
 \texttt{import all}, may span lines and comments.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
-\texttt{termination\_by}, \texttt{decreasing\_by} or \texttt{deriving}; trailing blank lines are
+\texttt{termination\_by}, \texttt{decreasing\_by}, \texttt{deriving}, \texttt{partial\_fixpoint},
+or \texttt{monotonicity\_by}; trailing blank lines are
 dropped. This matches the layout used by Mathlib and by most Lean code, including
 \texttt{match} alternatives and \texttt{inductive} constructors.
 
@@ -314,12 +316,14 @@ Mark & Meaning \\
 \end{center}
 
 \noindent The compiled files are looked for under \opt{project}
-(\texttt{.lake/build/lib/lean/\dots}), or at the actual artifact path recorded in a v2 export.
+(\texttt{.lake/build/lib/lean/\dots}), or at the actual artifact path recorded in a v2/v3 export.
 When a compiled file is present, its timestamp is compared with the source. An export's
 axiom list is checked against the dependency fingerprint of its Lake build: if an imported
 proof changes and the module is rebuilt, re-export before relying on its axiom information.
 Automatic exports supply build paths only when their recorded source path identifies the
 selected file; unrelated sidecars are ignored.
+Source-only lookup and proof hiding remain heuristics; the build marks do not certify the
+extraction itself.
 
 The \opt{verify} option chooses how strict to be:
 \begin{center}
@@ -360,7 +364,7 @@ The old option name \opt{check} is also accepted. The marks' appearance can be c
 redefining \cs{leanquotebadge}\verb|{label}| (in the box) and \cs{leanquotebadgetext}\verb|{label}|
 (without a box).
 
-\section{Optional: exact boundaries and axioms from Lean}\label{sec:export}
+\section{Optional: Lean-derived exports}\label{sec:export}
 
 For files laid out unusually, Lean itself can report where each declaration starts and ends.
 From the root of the Lake project, run the exporter shipped with the package:
@@ -379,12 +383,20 @@ The exporter runs through \texttt{lake env lean --run}; nothing is added to the 
 It requires modules configured in a Lake \texttt{lean\_lib}, with source and build paths
 inside the project. The output directory mirrors each module's actual source path.
 
+Version~3 adds Lean-derived statement views, using original source slices instead
+of pretty-printing elaborated types. An additional, isolated frontend pass respects local
+notation and command scopes. It adds work and can repeat \texttt{\#eval} or other compile-time
+effects. Collection is enabled by default. Use \verb|leanquote-export --no-statements|
+followed by the module names to skip
+this pass; the export still contains full source, exact ranges, and axioms. Theorems without
+a prepared view stay complete with a warning when \opt{proof=false}.
+
 An export placed next to the \texttt{.lean} file is also found, and an export can be quoted
 explicitly with \verb|\leanquote[file=Abstract.leanquote]{...}|.
 An explicitly selected export deliberately shows its recorded snapshot. With verification
 enabled, changed source or a different local build produces a warning and an
 \textsc{unverified} mark. When no local build
-is available, \opt{verify=auto} uses a v2 snapshot's recorded axioms; \opt{verify=true} marks
+is available, \opt{verify=auto} uses a v2/v3 snapshot's recorded axioms; \opt{verify=true} marks
 it unverified.
 
 For an explicit export, \opt{root=../lean/} prefixes the source path recorded in the
@@ -394,10 +406,11 @@ Recorded compiled artifact paths are relative to \opt{project}, or to \opt{root}
 change the snapshot shown.
 
 The exporter resolves source and compiled paths through Lake, including custom source/build
-directories. Version~2 records the build fingerprint and prefixes every code line, so literal
-format markers inside Lean strings cannot truncate a quote. Version~1 exports remain readable
+directories. Versions~2 and~3 record build fingerprints and frame every payload line, so
+literal format markers inside Lean strings cannot truncate a quote. Version~2 exports
+remain valid, using conservative \LaTeX{} proof hiding. Version~1 exports remain readable
 but are marked \textsc{unverified}; re-run the exporter to upgrade them.
-The v2 format rejects control characters in metadata (including names and paths),
+The v2/v3 formats reject control characters in metadata (including names and paths),
 whitespace inside axiom names, and bare carriage returns in source. LF and CRLF are supported.
 
 \section{Publishing: arXiv, CI, Overleaf}\label{sec:publishing}
@@ -477,19 +490,15 @@ authors on presenting the formal statements of machine-checked results to human 
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
-\item[0.19 (2026-10-27)] Lean-aware highlighting for raw/interpolated strings (including gaps), characters,
-  escaped identifiers, and expanded vocabulary; configurable literal color. Distinguish
-  known interpolators from ordinary bang functions. Fix Unicode order/scope, escaped names,
-  quoted commands, \texttt{class inductive} lookup, import command boundaries,
-  and failed-build verification. Preserve statement operators, local bindings, equations,
-  branching \texttt{do} blocks, monadic bindings, conditional patterns, and exception handlers
-  when hiding proofs; close inner control-flow scopes at
-  the next match alternative and hide \texttt{where} proofs. Respect indentation and
-  \opt{gobble}, line-selection context, TeX escapes,
-  trailing TeX after listing environments, starred replacements, replacement widths,
-  \opt{texcl}, and \opt{showstringspaces}. Preserve snapshot tabs, normalize exported names,
-  and reject unsafe metadata. Validate automatic export source identity before adopting build
-  paths; expand filename macros at quote time. Bound regression fixtures per TeX process.
+\item[0.19 (2026-10-27)] V3 exports with Lean-derived statement views and declaration kinds;
+  conservative \LaTeX{} proof hiding preserves uncertain declarations and warns.
+  Optional \verb|--no-statements| skips the frontend replay. Lean-aware highlighting for
+  raw/interpolated strings, characters, nested comments, escaped identifiers, and expanded
+  vocabulary; configurable literal color. Respect Unicode scope, indentation, line selection,
+  TeX escapes, custom replacements, and visible string spaces. Fix standard declaration forms,
+  import boundaries, and required postfix directives. Preserve snapshot tabs, validate export
+  source/build provenance, reject unsafe metadata, and expand filename macros at quote time.
+  Bound regression fixtures per TeX process.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.

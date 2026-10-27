@@ -32,7 +32,7 @@ Put `latex/leanquote.sty` where LaTeX can find it (next to your paper, or in `TE
 \leanquotesetup{file=TranslationTiling/Abstract.lean} % default file for following quotes
 \leanquote{Point, Prototile}
 \leanquote[doc]{Tiles}                      % with its doc comment
-\leanquote[proof=false]{main_theorem}       % statement only, proof shown as := ...
+\leanquote[proof=false]{main_theorem}       % request statement-only output when safe
 \leanquote[file=Other/File.lean]{foo}       % one-off quote from another file
 \leanquote[imports]{Point, Prototile}      % imports, then declarations in one listing
 \leanquote[imports]{}                     % only the import block of the current file
@@ -50,6 +50,14 @@ slash. Without `project`, paths are relative to the LaTeX working directory. Exp
 without a `project` prefix.
 Path options accept expandable macros, evaluated when each quote runs; for example,
 `\leanquotesetup{file=\LeanFile}` can refer to a macro defined or changed later.
+
+With `proof=false`, v3 exports supply Lean-derived theorem and lemma statements, preserving
+the author's notation and parameter defaults. Without an export, or with an older export,
+LaTeX hides assignment proofs conservatively after simple signatures, recognizing `by`
+proofs and single references. Unparenthesized term-control constructs, equation or
+`where` proofs, and ambiguous term proofs stay complete, with a warning. A v3 theorem with
+no prepared statement also stays complete. This warning does not change verification marks;
+definitions always keep their bodies.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
 in the same listing. `\leanquote[imports]{}` quotes only that block: the `module`, `prelude`, and
@@ -83,7 +91,7 @@ shell escape:
   - **EXTRA AXIOMS**: the declaration depends on axioms beyond `propext`, `Classical.choice`,
     `Quot.sound`, e.g. via `native_decide` (needs an export).
 
-  When a compiled file is available, its timestamp is compared with the source. A current v2
+  When a compiled file is available, its timestamp is compared with the source. A current v2/v3
   export also checks axiom dependencies against its recorded Lake build fingerprint; rebuilding
   an imported proof invalidates that fingerprint even if the quoted source is unchanged.
   Automatic exports supply build paths only when their recorded source path identifies the
@@ -100,7 +108,7 @@ run `lake build`, compile the paper locally, check for leanquote warnings and UN
 then upload. If CI builds Lean, use `verify=true` there to catch missing compiled files too.
 Portable exports can still report USES SORRY or EXTRA AXIOMS without a local Lean build.
 
-### Optional: exact boundaries and axioms with `leanquote-export`
+### Optional: Lean-derived exports with `leanquote-export`
 
 If you want Lean itself to say where each declaration starts and ends, run, from the root of the
 Lake project:
@@ -115,19 +123,26 @@ automatically and uses Lean's exact declaration ranges, and the axioms each decl
 on (for the USES SORRY and EXTRA AXIOMS marks); nothing else changes in the paper.
 The exporter asks Lake for the actual source and compiled-file paths, including custom source
 directories. It records the build fingerprint as well as the source text.
-The v2 format rejects control characters in metadata (including names and paths),
+The v2/v3 formats reject control characters in metadata (including names and paths),
 whitespace inside axiom names, and bare carriage returns in source. LF and CRLF are supported.
 If `Abstract.lean` is edited after the export, LaTeX warns and reads the `.lean` file
 directly, so quotes of a `.lean` file show its current code. An export placed next to the
 `.lean` file (`Abstract.leanquote`) is also found. An export can be given explicitly as
 `\leanquote[file=Abstract.leanquote]{...}`. An explicit export deliberately shows its recorded
 snapshot. With verification enabled, changed source or a different local build produces
-an UNVERIFIED mark. With no local build, `verify=auto` can use a v2 snapshot's recorded
+an UNVERIFIED mark. With no local build, `verify=auto` can use a v2/v3 snapshot's recorded
 axioms; `verify=true` marks it unverified.
 Older v1 exports remain readable but are marked UNVERIFIED until regenerated.
+Older v2 exports keep their provenance checks and use conservative LaTeX proof hiding.
 Nothing is added to your Lean project.
 The exporter requires modules configured in a Lake `lean_lib`, with source and build
 paths inside the project. Its output directory mirrors each module's actual source path.
+
+Generating v3 statement views runs an additional, isolated Lean frontend pass. It respects
+local notation and command scopes, and can repeat `#eval` and other compile-time effects.
+Use `leanquote-export --no-statements MODULE [MODULE ...]` to skip this pass. The export
+still contains full source, exact ranges, and axiom data; `proof=false` retains full theorems
+and warns. `--statements` explicitly enables collection (the default).
 
 For an explicit export, `root=../lean/` prefixes the source path recorded in the export;
 `source=../lean/Other.lean` overrides it with a complete path. Compiled artifact paths
@@ -144,7 +159,7 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `file=<path>` | current file | select the file to quote; per-call overrides leave the default unchanged |
 | `doc` | false | also show each declaration's doc comment |
 | `imports` | false | prepend the import block once; an empty name list quotes only imports |
-| `proof` | true | with `proof=false`, theorem and lemma bodies become `:= ...`, including `where` proofs; definitions keep their bodies |
+| `proof` | true | request statement-only theorem/lemma output with `proof=false`; keep complete text and warn when unsafe or unavailable; definitions keep their bodies |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `boxback=<color>` | `black!3` | background color of the box |
 | `boxframe=<color>` | `black!45` | border color of the box and logo outline |
@@ -243,6 +258,8 @@ cd example && TEXINPUTS=../latex: pdflatex example.tex
 - Quotes of a `.lean` file show its current text, using layout rules unless an up-to-date export
   supplies exact boundaries. Explicit `.leanquote` inputs show snapshots, with a warning and
   UNVERIFIED mark when a changed source or local build is detected.
+  Source-only lookup and proof hiding remain heuristics; build marks describe the file/build
+  status and do not certify the extraction itself.
 - Local build checks rely on file timestamps and Lake's recorded build fingerprints; they are
   not a substitute for running `lake build`. Without build artifacts, `verify=auto` cannot
   establish the status of a local build; use `verify=true` to mark this case.
