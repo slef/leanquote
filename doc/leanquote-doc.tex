@@ -270,7 +270,7 @@ where \meta{keyword} is one of \texttt{def}, \texttt{theorem}, \texttt{lemma}, \
 Attribute lines just above it are included, and so is the doc comment if \opt{doc} is set.
 Nested comments and literals are skipped when recognizing declarations. Bracketed terms,
 including syntax quotations, stay within their enclosing declaration.
-Comments are omitted from the import block, including inline and multiline comments.
+The import block contains only header commands, with comments omitted and spacing normalized.
 The header may include \texttt{module} or \texttt{prelude}; import commands, including
 \texttt{import all}, may span lines and comments.
 The declaration continues while lines are blank, indented, or start with \texttt{|},
@@ -475,17 +475,17 @@ authors on presenting the formal statements of machine-checked results to human 
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
-\item[0.19 (2026-10-26)] Lean-aware highlighting for raw/interpolated strings, characters,
+\item[0.19 (2026-10-26)] Lean-aware highlighting for raw/interpolated strings (including gaps), characters,
   escaped identifiers, and expanded vocabulary; configurable literal color. Distinguish
   known interpolators from ordinary bang functions. Fix Unicode order/scope, escaped names,
-  quoted commands, \texttt{class inductive} lookup, split imports (including \texttt{all}),
-  and failed-build verification. Preserve local bindings, equations, branching \texttt{do}
+  quoted commands, \texttt{class inductive} lookup, import command boundaries,
+  and failed-build verification. Preserve statement operators, local bindings, equations, branching \texttt{do}
   blocks, and exception handlers when hiding proofs; close inner control-flow scopes at
   the next match alternative and hide \texttt{where} proofs. Respect indentation and
   \opt{gobble}, line-selection context, TeX escapes,
   trailing TeX after listing environments, starred replacements, replacement widths,
   \opt{texcl}, and \opt{showstringspaces}. Preserve snapshot tabs, normalize exported names,
-  and reject unsafe metadata.
+  and reject unsafe metadata. Bound regression fixtures per TeX process.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.

@@ -51,7 +51,8 @@ without a `project` prefix.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
 in the same listing. `\leanquote[imports]{}` quotes only that block: the `module`, `prelude`, and
-`[public|private|meta] import` lines at the top of the file, with comments omitted.
+`[public|private|meta] import` commands at the top of the file, with comments omitted and
+spacing normalized. A declaration following an import on the same line is excluded.
 It defaults to false; bare `imports` means `imports=true`. An enabled setup default can
 be overridden with `imports=false` for one quote. Names such as `import` and `imports`
 remain ordinary declaration lookups.
