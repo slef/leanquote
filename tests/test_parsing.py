@@ -177,6 +177,31 @@ class ParsingTests(unittest.TestCase):
                     '@@src ' + line + '\n' for line in lean.splitlines())
                 saved, _ = self.compile('', r"\leanquote[file=Saved.leanquote,imports]{}", export=exported)
                 self.assertEqual(saved, snippets)
+
+    def test_split_import_all_preserves_module_name(self):
+        for command in ['import all\n  Lean', 'import\n  all\n  Lean',
+                        'import /- first -/ all /- second\n  continued -/ Lean',
+                        'import\n  /- first -/ all\n  /- second -/ Lean']:
+            with self.subTest(command=command):
+                lean = 'module\n' + command + '\ndef after : Nat := 1\n'
+                snippets, _ = self.compile(lean, r'\leanquote[imports]{}',
+                                           olean=bool(shutil.which('lean')))
+                self.assertEqual(snippets[0].split(), ['module', 'import', 'all', 'Lean'])
+                exported = '@@leanquote-export 2\n' + ''.join(
+                    '@@src ' + line + '\n' for line in lean.splitlines())
+                saved, _ = self.compile('', r'\leanquote[file=Saved.leanquote,imports]{}',
+                                        export=exported)
+                self.assertEqual(saved, snippets)
+
+    def test_class_inductive_names_are_found_from_source(self):
+        declaration = 'class inductive Truth : Prop where\n  | intro : Truth'
+        lean = ('namespace A\n/-- A class. -/\n' + declaration +
+                '\nclass «inductive» : Prop where\nend A\ndef after : Nat := 1\n')
+        snippets, _ = self.compile(lean, r'\leanquote[doc]{A.Truth}'
+            r'\leanquote{A.«inductive»}\leanquote{after}', olean=bool(shutil.which('lean')))
+        self.assertEqual(snippets, ['/-- A class. -/\n' + declaration,
+                                   'class «inductive» : Prop where', 'def after : Nat := 1'])
+
     @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
     def test_multiline_escaped_identifier_cannot_declare_a_phantom(self):
         lean = 'def «first\ndef phantom : Nat := 99\nlast» : Nat := 1\n'

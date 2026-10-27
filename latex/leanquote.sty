@@ -1380,7 +1380,8 @@
             \regex_extract_once:nVNTF
               { \A (?:@\[ [^\]]* \] \s*)*
                    (?:(?:public|private|protected|noncomputable|partial|unsafe|nonrec|meta) \s+)*
-                   (?:def|theorem|lemma|abbrev|structure|inductive|instance|class|axiom|opaque)
+                   (?:class \s+ inductive | def|theorem|lemma|abbrev|structure|inductive|
+                      instance|class|axiom|opaque)
                    \s+ ((?: « .*? » | [^\s.:(\[\{]+ ) (?: \. (?: « .*? » | [^\s.:(\[\{]+ ) )*) }
               \l__leanquote_code_str \l__leanquote_decl_seq
               {
@@ -1426,7 +1427,7 @@
               \l__leanquote_buf_seq \l__leanquote_import_modifiers_seq
             \seq_clear:N \l__leanquote_import_modifiers_seq
             \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-            \regex_match:nVTF { import \s* \Z } \l__leanquote_code_str
+            \regex_match:nVTF { import \s* (?:all \s*)? \Z } \l__leanquote_code_str
               { \bool_set_true:N \l__leanquote_import_pending_bool }
               { \bool_set_false:N \l__leanquote_import_pending_bool }
           }
@@ -1436,7 +1437,9 @@
                 \bool_if:NTF \l__leanquote_import_pending_bool
                   {
                     \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-                    \bool_set_false:N \l__leanquote_import_pending_bool
+                    \regex_match:nVTF { \A \s* all \s* \Z } \l__leanquote_code_str
+                      { \bool_set_true:N \l__leanquote_import_pending_bool }
+                      { \bool_set_false:N \l__leanquote_import_pending_bool }
                   }
                   { \ior_map_break: }
               }
