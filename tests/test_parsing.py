@@ -202,6 +202,28 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(snippets, ['/-- A class. -/\n' + declaration,
                                    'class «inductive» : Prop where', 'def after : Nat := 1'])
 
+    def test_imports_stop_at_inline_declarations(self):
+        for header, expected in [
+            ('import Init', 'import Init'),
+            ('import Init /- gap -/', 'import Init'),
+            ('import Init import Lean', 'import Init import Lean'),
+            ('module prelude public import Init', 'module prelude public import Init'),
+            ('module import Init public', 'module import Init'),
+            ('import\n Init', 'import\nInit'),
+            ('module\nmeta import all\n Lean', 'module\nmeta import all\nLean'),
+            ('import Init.«Data».Nat.Basic', 'import Init.«Data».Nat.Basic'),
+        ]:
+            with self.subTest(header=header):
+                lean = header + ' def after : Nat := 1\n'
+                snippets, _ = self.compile(lean, r'\leanquote[imports]{}',
+                                           olean=bool(shutil.which('lean')))
+                self.assertEqual(snippets, [expected])
+                exported = '@@leanquote-export 2\n' + ''.join(
+                    '@@src ' + line + '\n' for line in lean.splitlines())
+                saved, _ = self.compile('', r'\leanquote[file=Saved.leanquote,imports]{}',
+                                        export=exported)
+                self.assertEqual(saved, snippets)
+
     @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
     def test_multiline_escaped_identifier_cannot_declare_a_phantom(self):
         lean = 'def «first\ndef phantom : Nat := 99\nlast» : Nat := 1\n'

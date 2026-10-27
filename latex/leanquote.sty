@@ -1416,51 +1416,105 @@
 % ---------------------------------------------------------------- the import block
 % Skip nested comments throughout the header. Emit comment-free source slices so
 % comments spanning command lines cannot leave an orphan opener or closer.
-\bool_new:N \l__leanquote_import_pending_bool
 \seq_new:N \l__leanquote_import_modifiers_seq
+\seq_new:N \l__leanquote_import_words_seq
+\seq_new:N \l__leanquote_import_prefix_seq
+\seq_new:N \l__leanquote_import_token_seq
+\str_new:N \l__leanquote_import_tail_str
+\str_new:N \l__leanquote_import_token_str
+\int_new:N \l__leanquote_import_state_int
+\bool_new:N \l__leanquote_import_scan_bool
+\bool_new:N \l__leanquote_import_stop_bool
+\cs_new_protected:Npn \__leanquote_import_keyword:
+  {
+    \str_case:VnF \l__leanquote_import_token_str
+      {
+        {module}
+          { \seq_put_right:NV \l__leanquote_import_words_seq \l__leanquote_import_token_str
+            \bool_set_true:N \l__leanquote_found_bool }
+        {prelude}
+          { \seq_put_right:NV \l__leanquote_import_words_seq \l__leanquote_import_token_str
+            \bool_set_true:N \l__leanquote_found_bool }
+        {public} { \seq_put_right:NV \l__leanquote_import_prefix_seq \l__leanquote_import_token_str }
+        {private} { \seq_put_right:NV \l__leanquote_import_prefix_seq \l__leanquote_import_token_str }
+        {meta} { \seq_put_right:NV \l__leanquote_import_prefix_seq \l__leanquote_import_token_str }
+        {import}
+          {
+            \seq_concat:NNN \l__leanquote_buf_seq
+              \l__leanquote_buf_seq \l__leanquote_import_modifiers_seq
+            \seq_clear:N \l__leanquote_import_modifiers_seq
+            \seq_concat:NNN \l__leanquote_import_words_seq
+              \l__leanquote_import_words_seq \l__leanquote_import_prefix_seq
+            \seq_clear:N \l__leanquote_import_prefix_seq
+            \seq_put_right:NV \l__leanquote_import_words_seq \l__leanquote_import_token_str
+            \int_set:Nn \l__leanquote_import_state_int {1}
+            \bool_set_true:N \l__leanquote_found_bool
+          }
+      }
+      { \bool_set_true:N \l__leanquote_import_stop_bool
+        \bool_set_false:N \l__leanquote_import_scan_bool }
+  }
 \cs_new_protected:Npn \__leanquote_import_line:n #1
   {
     \str_set:Nn \l__leanquote_line_str {#1}
     \__leanquote_lex:N \l__leanquote_line_str
-    \tl_set:NV \l_tmpa_tl \l__leanquote_code_str
-    \tl_trim_spaces:N \l_tmpa_tl
-    \regex_match:nVTF
-      { \A \s* (?:(?:public|private|meta) \s+)* (?:public|private|meta) \s* \Z }
-      \l__leanquote_code_str
-      { \seq_put_right:NV \l__leanquote_import_modifiers_seq \l_tmpa_tl }
+    \str_set_eq:NN \l__leanquote_import_tail_str \l__leanquote_code_str
+    \seq_clear:N \l__leanquote_import_words_seq
+    \seq_clear:N \l__leanquote_import_prefix_seq
+    \bool_set_false:N \l__leanquote_import_stop_bool
+    \bool_set_true:N \l__leanquote_import_scan_bool
+    \bool_while_do:nn { \l__leanquote_import_scan_bool }
       {
-        \regex_match:nVTF
-          { \A \s* (?: (?:module|prelude) \s* \Z | (?:(?:public|private|meta) \s+)* import (?:\s|\Z) ) }
-          \l__leanquote_code_str
+        % Read header tokens rather than whole lines: a declaration may follow
+        % the final module name on the same physical line. Escaped components
+        % retain their spaces and dots. States: header / optional all / module.
+        \regex_extract_once:nVNTF
+          { \A \s* ((?: « .*? » | [^\s.:(\[\{]+ ) (?: \. (?: « .*? » | [^\s.:(\[\{]+ ) )*) }
+          \l__leanquote_import_tail_str \l__leanquote_import_token_seq
           {
-            \bool_set_true:N \l__leanquote_found_bool
-            \seq_concat:NNN \l__leanquote_buf_seq
-              \l__leanquote_buf_seq \l__leanquote_import_modifiers_seq
-            \seq_clear:N \l__leanquote_import_modifiers_seq
-            \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-            \regex_match:nVTF { import \s* (?:all \s*)? \Z } \l__leanquote_code_str
-              { \bool_set_true:N \l__leanquote_import_pending_bool }
-              { \bool_set_false:N \l__leanquote_import_pending_bool }
-          }
-          {
-            \regex_match:nVF { \A \s* \Z } \l__leanquote_code_str
+            \str_set:Ne \l__leanquote_import_token_str
+              { \seq_item:Nn \l__leanquote_import_token_seq {2} }
+            \str_set:Ne \l__leanquote_import_tail_str
               {
-                \bool_if:NTF \l__leanquote_import_pending_bool
+                \str_range:Nnn \l__leanquote_import_tail_str
+                  { \str_count:e { \seq_item:Nn \l__leanquote_import_token_seq {1} } + 1 } {-1}
+              }
+            \int_compare:nNnTF { \l__leanquote_import_state_int } = {0}
+              { \__leanquote_import_keyword: }
+              {
+                \seq_put_right:NV \l__leanquote_import_words_seq \l__leanquote_import_token_str
+                \bool_lazy_and:nnTF
+                  { \int_compare_p:nNn { \l__leanquote_import_state_int } = {1} }
+                  { \str_if_eq_p:Vn \l__leanquote_import_token_str {all} }
                   {
-                    \seq_put_right:NV \l__leanquote_buf_seq \l_tmpa_tl
-                    \regex_match:nVTF { \A \s* all \s* \Z } \l__leanquote_code_str
-                      { \bool_set_true:N \l__leanquote_import_pending_bool }
-                      { \bool_set_false:N \l__leanquote_import_pending_bool }
+                    \int_set:Nn \l__leanquote_import_state_int {2}
                   }
-                  { \ior_map_break: }
+                  { \int_zero:N \l__leanquote_import_state_int }
               }
           }
+          {
+            \bool_set_false:N \l__leanquote_import_scan_bool
+            \regex_match:nVF { \A \s* \Z } \l__leanquote_import_tail_str
+              { \bool_set_true:N \l__leanquote_import_stop_bool }
+          }
+      }
+    \seq_if_empty:NF \l__leanquote_import_words_seq
+      { \seq_put_right:Ne \l__leanquote_buf_seq
+          { \seq_use:Nn \l__leanquote_import_words_seq {~} } }
+    \bool_if:NTF \l__leanquote_import_stop_bool
+      { \ior_map_break: }
+      {
+        % A public/meta prefix may belong to the next declaration. Commit it
+        % only once a subsequent import keyword confirms it belongs to a header.
+        \seq_if_empty:NF \l__leanquote_import_prefix_seq
+          { \seq_put_right:Ne \l__leanquote_import_modifiers_seq
+              { \seq_use:Nn \l__leanquote_import_prefix_seq {~} } }
       }
   }
 \cs_new_protected:Npn \__leanquote_imports:n #1
   {% #1 = .lean file, or export (its @@src lines)
     \bool_set_false:N \l__leanquote_found_bool
-    \bool_set_false:N \l__leanquote_import_pending_bool
+    \int_zero:N \l__leanquote_import_state_int
     \seq_clear:N \l__leanquote_import_modifiers_seq
     \__leanquote_lex_reset:
     \int_set:Nn \l__leanquote_matches_int { 1 }
