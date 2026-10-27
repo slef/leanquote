@@ -71,6 +71,22 @@ theorem sample : True /- (*@\textbf{note}@*) -/ := by trivial
         self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
         self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
 
+    def test_indented_escaped_environments_gobble_only_source_characters(self):
+        for annotation, options in [
+            (r"(*@\textbf{note}@*)", r"escapeinside={(*@}{@*)}"),
+            (r"$x+y$", "mathescape=true"),
+        ]:
+            with self.subTest(options=options):
+                body = (r"\begin{lstlisting}[style=leanquote,gobble=2," + options + "]\n"
+                        "  theorem sample : True /- " + annotation + " -/ := by trivial\n"
+                        r"\end{lstlisting}" + "\n" +
+                        r"\lstinputlisting[style=leanquote]{Fixture.lean}")
+                rendered = self.render("def after : Nat := 1\n", body=body)
+                self.assert_paint(rendered, 'theorem', 1, (41/255, 110/255, 166/255))
+                self.assert_paint(rendered, 'by', 1, (41/255, 110/255, 166/255))
+                self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
+                self.assert_paint(rendered, 'def', 1, (41/255, 110/255, 166/255))
+
     def test_multiline_escaped_environment_keeps_colors_and_scope(self):
         body = r"""
 \begin{lstlisting}[style=leanquote,escapeinside={(*@}{@*)}]

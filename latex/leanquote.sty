@@ -2014,6 +2014,8 @@
 % With TeX escapes, an environment must be retokenized as a whole: eagerly
 % tokenizing one line would freeze TeX commands with listings' active catcodes.
 \seq_new:N \l__leanquote_render_lines_seq
+\cs_new_protected:Npn \__leanquote_render_begin:
+  { \group_end: \__leanquote_render_bol: }
 \cs_new_protected:Npn \__leanquote_render_environment_content:n #1
   {
     % Prepare outside the initial Pmode group, so maps and the original BOL
@@ -2033,11 +2035,15 @@
     \__leanquote_render_chars:
     \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_bol:
     \lst@EnterMode \lst@Pmode { \lst@SelectCharTable }
-    \__leanquote_render_bol:
+    % A temporary active prefix starts indentation removal on actual input,
+    % after scantokens has opened its stream. Restore its meaning immediately.
+    \group_begin:
+    \char_set_catcode_active:n {63}
+    \char_set_active_eq:nN {63} \__leanquote_render_begin:
     \use:e
       {
         \exp_not:N \tex_scantokens:D
-          { \exp_not:n {#1} \char_generate:nn {92} {12} \exp_not:o { \lstenv@endstring } }
+          { ? \exp_not:n {#1} \char_generate:nn {92} {12} \exp_not:o { \lstenv@endstring } }
       }
   }
 \cs_new_protected:Npn \__leanquote_render_environment:
