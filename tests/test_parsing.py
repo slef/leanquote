@@ -354,6 +354,36 @@ class ParsingTests(unittest.TestCase):
             "def afterQuote : Nat := 1",
         ])
 
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_builtin_interpolation_cannot_expose_verified_phantoms(self):
+        for call, typ in [
+            ("dbg_trace", "IO Unit"),
+            ("throwError", "Lean.CoreM Unit"),
+            ("throwErrorAt (← Lean.getRef)", "Lean.CoreM Unit"),
+            ('throwErrorAt (Lean.Syntax.mkStrLit "{ ordinary")', "Lean.CoreM Unit"),
+        ]:
+            with self.subTest(call=call):
+                lean = ('import Lean\nopen Lean\n'
+                        'def message : ' + typ + ' := do\n  ' + call +
+                        ' /- comment -/\n    "{"first\n'
+                        'def phantom : Nat := 99\nlast"}"\n  pure ()\n'
+                        'def afterMessage : String := "ordinary { brace"\n')
+                _, output = self.compile(lean,
+                    r"\leanquote[olean=Fixture.olean,verify=true]{phantom}",
+                    success=False, olean=True)
+                self.assertIn("not found", output)
+                snippets, _ = self.compile(lean, r"\leanquote{afterMessage}")
+                self.assertEqual(snippets, ['def afterMessage : String := "ordinary { brace"'])
+        lean = ('import Lean\n'
+                'def qualified : Lean.CoreM Unit := Lean.throwError "{ ordinary"\n'
+                'def plainMessage : Lean.MessageData := m!"oops"\n'
+                'def nonliteral : Lean.CoreM Unit := do\n'
+                '  let _ : Unit ← throwError plainMessage\n'
+                '  let _ := "{ ordinary"\n  pure ()\n'
+                'def afterOrdinary : Nat := 42\n')
+        snippets, _ = self.compile(lean, r"\leanquote{afterOrdinary}", olean=True)
+        self.assertEqual(snippets, ["def afterOrdinary : Nat := 42"])
+
     def test_inline_attributes_do_not_leak_metadata(self):
         snippets, _ = self.compile(METADATA, r"\leanquote[doc]{wanted}\leanquote[doc]{kept}")
         self.assertEqual(snippets, [

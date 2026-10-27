@@ -171,6 +171,9 @@
 \seq_new:N \l__leanquote_context_seq
 \str_new:N \l__leanquote_context_str
 \bool_new:N \l__leanquote_interpolated_bool
+\int_new:N \l__leanquote_message_args_int
+\int_new:N \l__leanquote_message_depth_int
+\bool_new:N \l__leanquote_message_atom_bool
 \int_new:N \l__leanquote_hole_start_int
 \bool_new:N \l__leanquote_hole_bool
 \int_new:N \l__leanquote_comment_int
@@ -194,6 +197,9 @@
     \int_zero:N \l__leanquote_comment_int
     \seq_clear:N \l__leanquote_context_seq
     \bool_set_false:N \l__leanquote_interpolated_bool
+    \int_set:Nn \l__leanquote_message_args_int {-1}
+    \int_zero:N \l__leanquote_message_depth_int
+    \bool_set_false:N \l__leanquote_message_atom_bool
     \bool_set_false:N \l__leanquote_string_bool
     \bool_set_false:N \l__leanquote_escape_bool
     \bool_set_false:N \l__leanquote_proof_scan_bool
@@ -209,6 +215,7 @@
   }
 \cs_new_protected:Npn \__leanquote_lex_code:N #1
   {
+    \__leanquote_message_char:
     \bool_set_false:N \l__leanquote_literal_bool
     \str_case:Vn \l__leanquote_char_str
       {
@@ -280,6 +287,81 @@
 \int_new:N \l__leanquote_identifier_pos_int
 \int_new:N \l__leanquote_identifier_cp_int
 \int_new:N \l__leanquote_identifier_end_int
+\str_new:N \l__leanquote_identifier_str
+\cs_new_protected:Npn \__leanquote_message_space:
+  {
+    \bool_if:nT
+      { \l__leanquote_message_atom_bool &&
+        \int_compare_p:nNn { \l__leanquote_message_args_int } > {0} &&
+        \int_compare_p:nNn { \l__leanquote_message_depth_int } = {0} }
+      {
+        \int_decr:N \l__leanquote_message_args_int
+        \bool_set_false:N \l__leanquote_message_atom_bool
+      }
+  }
+\cs_new_protected:Npn \__leanquote_message_char:
+  {
+    \int_compare:nNnT { \l__leanquote_message_args_int } > {-1}
+      {
+        \regex_match:nVTF { \A \s \Z } \l__leanquote_char_str
+          { \__leanquote_message_space: }
+          {
+            \str_if_eq:VnT \l__leanquote_char_str {"}
+              { \__leanquote_message_space: }
+            \int_compare:nNnTF { \l__leanquote_message_args_int } = {0}
+              {
+                \str_if_eq:VnT \l__leanquote_char_str {"}
+                  { \bool_set_true:N \l__leanquote_interpolated_bool }
+                \int_set:Nn \l__leanquote_message_args_int {-1}
+              }
+              {
+                \bool_set_true:N \l__leanquote_message_atom_bool
+                \str_case:Vn \l__leanquote_char_str
+                  {
+                    {(} { \int_incr:N \l__leanquote_message_depth_int }
+                    {[} { \int_incr:N \l__leanquote_message_depth_int }
+                    {)} { \int_decr:N \l__leanquote_message_depth_int }
+                    {]} { \int_decr:N \l__leanquote_message_depth_int }
+                    {;} { \int_set:Nn \l__leanquote_message_args_int {-1} }
+                  }
+                \str_if_eq:eeT { \l__leanquote_char_str } { \c_left_brace_str }
+                  { \int_incr:N \l__leanquote_message_depth_int }
+                \str_if_eq:eeT { \l__leanquote_char_str } { \c_right_brace_str }
+                  { \int_decr:N \l__leanquote_message_depth_int }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__leanquote_message_prefix:N #1
+  {
+    % Built-in message syntax accepts interpolation without an exclamation mark.
+    % Count its preceding atomic arguments; brackets keep their contents separate
+    % from the message. Qualified calls such as Lean.throwError are ordinary terms.
+    \bool_if:nT
+      { \int_compare_p:nNn { \l__leanquote_message_args_int } < {0} &&
+        ! \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_scan_int - 1 } } {.} }
+      {
+        \str_case:Vn \l__leanquote_identifier_str
+          {
+            {dbg_trace} { \int_zero:N \l__leanquote_message_args_int }
+            {throwError} { \int_zero:N \l__leanquote_message_args_int }
+            {throwErrorAt} { \int_set:Nn \l__leanquote_message_args_int {1} }
+            {throwNamedError} { \int_set:Nn \l__leanquote_message_args_int {1} }
+            {throwNamedErrorAt} { \int_set:Nn \l__leanquote_message_args_int {2} }
+            {logNamedError} { \int_set:Nn \l__leanquote_message_args_int {1} }
+            {logNamedErrorAt} { \int_set:Nn \l__leanquote_message_args_int {2} }
+            {logNamedWarning} { \int_set:Nn \l__leanquote_message_args_int {1} }
+            {logNamedWarningAt} { \int_set:Nn \l__leanquote_message_args_int {2} }
+            {trace}
+              {
+                \str_if_eq:eeT { \str_item:Nn #1 { \l__leanquote_identifier_end_int + 1 } } {[}
+                  { \int_set:Nn \l__leanquote_message_args_int {1} }
+              }
+          }
+        \int_zero:N \l__leanquote_message_depth_int
+        \bool_set_false:N \l__leanquote_message_atom_bool
+      }
+  }
 \cs_new_protected:Npn \__leanquote_lex_identifier:N #1
   {
     \int_set_eq:NN \l__leanquote_identifier_pos_int \l__leanquote_scan_int
@@ -296,8 +378,10 @@
               { \int_set:Nn \l__leanquote_identifier_pos_int { \str_count:N #1 + 1 } }
             \int_incr:N \l__leanquote_identifier_pos_int
           }
-        \str_put_right:Ne \l__leanquote_code_str
+        \str_set:Ne \l__leanquote_identifier_str
           { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_identifier_end_int } }
+        \str_put_right:NV \l__leanquote_code_str \l__leanquote_identifier_str
+        \__leanquote_message_prefix:N #1
         \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_identifier_end_int
         \bool_set:Nn \l__leanquote_interpolated_bool
           { \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_scan_int } } {!} }
@@ -452,6 +536,7 @@
         \int_incr:N \l__leanquote_scan_int
       }
     \bool_set:Nn \l__leanquote_string_bool { ! \seq_if_empty_p:N \l__leanquote_context_seq }
+    \__leanquote_message_space:
   }
 
 \int_new:N \l__leanquote_decode_bytes_int
