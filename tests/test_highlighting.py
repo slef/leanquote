@@ -111,6 +111,23 @@ theorem sample : True /- (*@\textbf{note}@*) -/ := by trivial
                 self.assert_paint(rendered, 'trivial', 1, (136/255, 84/255, 150/255))
                 self.assert_paint(rendered, 'def', 1, (41/255, 110/255, 166/255))
 
+    def test_environment_indentation_preserves_literal_and_comment_colors(self):
+        for indent in (2, 8, 12):
+            for gobble in (0, indent):
+                with self.subTest(indent=indent, gobble=gobble):
+                    code = ''.join(' ' * indent + 'def ' + name +
+                        ' : String := "Nat sorry" -- comment\n' for name in ('first', 'second'))
+                    rendered = self.render('', body=
+                        '\\begin{lstlisting}[style=leanquote,gobble=' + str(gobble) + ']\n' +
+                        code + '\\end{lstlisting}\n')
+                    for line in (1, 2):
+                        self.assert_paint(rendered, 'def', line, (41/255, 110/255, 166/255))
+                        self.assert_paint(rendered, 'String', line, (38/255, 128/255, 89/255))
+                        self.assert_paint(rendered, '=', line, (0, 0, 0))
+                        self.assert_paint(rendered, 'Nat', line, (153/255, 77/255, 0))
+                        self.assert_paint(rendered, 'sorry', line, (153/255, 77/255, 0))
+                        self.assert_paint(rendered, 'comment', line, (.4, .4, .4))
+
     def test_multiline_escaped_environment_keeps_colors_and_scope(self):
         body = r"""
 \begin{lstlisting}[style=leanquote,escapeinside={(*@}{@*)}]
