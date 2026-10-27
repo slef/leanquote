@@ -138,7 +138,7 @@ with `\leanquotesetup{...}`. Per-call options override defaults for that quote o
 | `file=<path>` | current file | select the file to quote; per-call overrides leave the default unchanged |
 | `doc` | false | also show each declaration's doc comment |
 | `imports` | false | prepend the import block once; an empty name list quotes only imports |
-| `proof` | true | with `proof=false`, theorem and lemma proofs (assignment or equation style) become `:= ...`; definitions keep their bodies |
+| `proof` | true | with `proof=false`, theorem and lemma bodies become `:= ...`, including `where` proofs; definitions keep their bodies |
 | `box` | true | put the listing in a light box (`leanquotebox`) |
 | `boxback=<color>` | `black!3` | background color of the box |
 | `boxframe=<color>` | `black!45` | border color of the box and logo outline |
@@ -200,7 +200,8 @@ the colors are `leanquotekeyword`, `leanquotetype` and `leanquotetactic`.
 Strings and character literals use the brown `leanquotestring` color. Raw strings,
 interpolation expressions, nested comments, and escaped identifiers are recognized separately.
 Change the literal style with `\leanquotesetup{stringstyle=\color{brown}}`, or use
-`stringstyle={}` for plain literals. These settings can also be passed to one quote.
+`stringstyle={}` for plain literals. Set `showstringspaces=true` to mark spaces
+inside literals. These settings can also be passed to one quote.
 
 The default style typesets about a hundred of Lean's Unicode symbols as math, under
 pdfLaTeX, LuaLaTeX and XeLaTeX. Others can be added with `literate` (pdfLaTeX) or a

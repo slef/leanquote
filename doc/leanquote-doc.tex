@@ -128,11 +128,11 @@ does not need in order to check the statement; definitions keep their bodies:
 \end{latexsrc}
 \leanquote[proof=false]{tiling_coRE_complete}
 
-\noindent Proof hiding tracks brackets, local \texttt{let}/\texttt{have} bindings,
-\texttt{match} expressions, and \texttt{do} blocks using lexical and layout rules.
-Their assignments and alternatives
-stay in the statement. Literals, escaped names, comments, and default parameter values such as
+\noindent Proof hiding preserves local \texttt{let}/\texttt{have} bindings,
+\texttt{match} expressions, and \texttt{do} blocks in the statement.
+Brackets, literals, comments, escaped names, and default parameter values such as
 \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)} do not act as proof delimiters.
+A \texttt{where} proof is omitted as a whole.
 Set \opt{proof=false} once in \cs{leanquotesetup} to hide all proofs.
 
 With the \opt{doc} option, the doc comment is included:
@@ -155,7 +155,7 @@ Option & Default & Meaning \\
 \opt{file=}\meta{path} & current file & file to quote; per-call overrides leave the default unchanged \\
 \opt{doc} & false & also show each declaration's doc comment \\
 \opt{imports} & false & prepend the import block once; an empty name list quotes only imports \\
-\opt{proof} & true & with \opt{proof=false}, theorem and lemma proofs (assignment or equation style) are replaced by \texttt{:= ...} \\
+\opt{proof} & true & with \opt{proof=false}, theorem and lemma bodies are replaced by \texttt{:= ...} \\
 \opt{box} & true & put the listing in a light frame (\texttt{leanquotebox}) \\
 \opt{boxback} & \texttt{black!3} & background color of the box \\
 \opt{boxframe} & \texttt{black!45} & border color of the box and logo outline \\
@@ -236,6 +236,7 @@ style for one quote or through \cs{leanquotesetup}:
 \leanquotesetup{stringstyle=\color{brown}}
 \leanquote[stringstyle={}]{Tiles} % plain strings and characters
 \end{latexsrc}
+Set \opt{showstringspaces=true} to mark spaces inside string and character literals.
 Starred \opt{literate} replacements leave strings and comments unchanged:
 \begin{latexsrc}
 \leanquote[literate=*{->}{{$\to$}}1]{Tiles}
@@ -477,6 +478,8 @@ authors on presenting the formal statements of machine-checked results to human 
   \texttt{do} blocks), split imports, and failed-build verification. Respect indentation,
   TeX escapes, starred replacements, and replacement widths. Restore \opt{texcl}, preserve
   snapshot tabs, normalize exported names, and reject unsafe metadata.
+  Recognize built-in message interpolation, preserve branching \texttt{do} result types,
+  hide \texttt{where} proofs, and respect \opt{showstringspaces}.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.
