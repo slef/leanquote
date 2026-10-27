@@ -107,6 +107,14 @@ theorem branchUnless : Id.run do
     | false => p := True
     return p
  := by change True; trivial
+theorem bitwise : (1 : Nat)
+  ||| 2 = 3 := by decide
+theorem boolean : true
+  || false := by decide
+theorem pipe : Nat.succ 0
+  |> (· = 1) := by rfl
+theorem gapProof : s!"first\\
+{"a:=b"}" = "firsta:=b" := by rfl
 def trailingTabs : Nat := 1 -- comment\t
 def marker : String := "header\t
 
@@ -360,7 +368,7 @@ srcDir = "lib-src"
         run(self.work, self.shell, native_path(WRAPPER), "Demo")
         shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
         names = ["branchReturn", "branchMatch", "whereProof", "branchLet", "caught",
-                 "branchIf", "branchUnless"]
+                 "branchIf", "branchUnless", "bitwise", "boolean", "pipe", "gapProof"]
         body = "\n".join(
             r"\leanquote[file=" + file + r",proof=false]{Example." + name + "}"
             for name in names for file in [

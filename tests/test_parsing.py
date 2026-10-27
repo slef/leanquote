@@ -427,6 +427,52 @@ class ParsingTests(unittest.TestCase):
         snippets, _ = self.compile(lean, r"\leanquote{target}", olean=True)
         self.assertEqual(snippets, ["def target : Nat := 1"])
 
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_string_gaps_keep_real_declarations_and_reject_phantoms(self):
+        ordinary = 'def ordinary : String := "first' + chr(92) + '\n"'
+        interpolated = ('def text : String := s!"first' + chr(92) +
+                        '\n{"hello\ndef phantom : Nat := 99\nlast"}"')
+        lean = ordinary + '\n' + interpolated + '\ndef after : Nat := 1\n'
+        _, output = self.compile(lean,
+            r'\leanquote[olean=Fixture.olean,verify=true]{phantom}', success=False, olean=True)
+        self.assertIn('not found', output)
+        snippets, _ = self.compile(lean,
+            r'\leanquote{ordinary}\leanquote{text}\leanquote{after}', olean=True)
+        self.assertEqual(snippets, [ordinary, interpolated, 'def after : Nat := 1'])
+
+    def test_string_gaps_preserve_proof_statement_offsets(self):
+        declaration = ('theorem gapProof : s!"first' + chr(92) +
+                       '\n{"a:=b"}" = "firsta:=b" := by rfl')
+        body = r'\leanquote[proof=false]{gapProof}'
+        snippets, _ = self.compile(declaration + '\n', body, olean=bool(shutil.which('lean')))
+        expected = [declaration.rsplit(' := by', 1)[0] + ' := ...']
+        self.assertEqual(snippets, expected)
+        exported = '@@leanquote-export 2\n@@begin gapProof\n@@axioms\n' + ''.join(
+            '@@code ' + line + '\n' for line in declaration.splitlines()) + '@@end\n'
+        saved, _ = self.compile('', body.replace('[proof=false]',
+            '[proof=false,file=Saved.leanquote]'), export=exported)
+        self.assertEqual(saved, expected)
+
+    def test_leading_bar_operators_are_not_equation_proofs(self):
+        declarations = [
+            'theorem bitwise : (1 : Nat)\n  ||| 2 = 3 := by decide',
+            'theorem boolean : true\n  || false := by decide',
+            'theorem pipe : Nat.succ 0\n  |> (· = 1) := by rfl',
+        ]
+        names = [decl.split()[1] for decl in declarations]
+        body = ''.join(r'\leanquote[proof=false]{' + name + '}' for name in names)
+        snippets, _ = self.compile('\n'.join(declarations) + '\n', body,
+                                    olean=bool(shutil.which('lean')))
+        expected = [decl.rsplit(' := by', 1)[0] + ' := ...' for decl in declarations]
+        self.assertEqual(snippets, expected)
+        exported = '@@leanquote-export 2\n' + ''.join(
+            '@@begin ' + name + '\n@@axioms\n' + ''.join(
+                '@@code ' + line + '\n' for line in decl.splitlines()) + '@@end\n'
+            for name, decl in zip(names, declarations))
+        saved, _ = self.compile('', body.replace('[proof=false]',
+            '[proof=false,file=Saved.leanquote]'), export=exported)
+        self.assertEqual(saved, expected)
+
     def test_proof_hiding_uses_lexical_state_and_modifiers(self):
         snippets, _ = self.compile(PROOFS, r'''
 \leanquote[proof=false]{escaped}

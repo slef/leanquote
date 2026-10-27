@@ -293,6 +293,18 @@ def nested : String := s!"outer {s!"inner {Nat.succ 1}"} tail"
             self.assert_paint(rendered, "Nat", line, (153/255, 77/255, 0))
         self.assert_paint(rendered, "def", 8, (41/255, 110/255, 166/255))
 
+    def test_string_gaps_preserve_interpolation_and_following_colors(self):
+        code = ('def text : String := s!"first' + chr(92) +
+                '\n{"hello\ndef phantom : Nat := 99\nlast"}"\n'
+                'def after : Nat := 1\n'
+                'def close : String := "first' + chr(92) + '\n"\n'
+                'def last : Nat := 2\n')
+        rendered = self.render(code)
+        self.assert_paint(rendered, 'def', 3, (153/255, 77/255, 0))
+        self.assert_paint(rendered, 'Nat', 3, (153/255, 77/255, 0))
+        for line in (5, 8):
+            self.assert_paint(rendered, 'def', line, (41/255, 110/255, 166/255))
+
     def test_character_literals_touching_operators_keep_lexical_context(self):
         code = ('def character : Unit → Char := fun _ =>'+chr(39)+chr(34)+chr(39)+'\n'
                 "def αname' : Nat := 1\n"

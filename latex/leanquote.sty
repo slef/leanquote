@@ -547,6 +547,9 @@
               { \l__leanquote_scan_int - \l__leanquote_class_start_int + 1 } { \l__leanquote_class_str } }
         \int_incr:N \l__leanquote_scan_int
       }
+    % A final backslash escapes the physical newline (a Lean string gap),
+    % not the first character of the following line.
+    \bool_set_false:N \l__leanquote_escape_bool
     \bool_set:Nn \l__leanquote_string_bool { ! \seq_if_empty_p:N \l__leanquote_context_seq }
     \__leanquote_message_space:
   }
@@ -834,7 +837,7 @@
     \regex_match:nVTF { \A \s* (?:catch|finally) (?:\s|\Z) } #1
       { \bool_set_true:N \l__leanquote_proof_handler_bool }
       { \bool_set_false:N \l__leanquote_proof_handler_bool }
-    \regex_match:nVTF { \A \s* \| } #1
+    \regex_match:nVTF { \A \s* \| (?: [^|>] | \Z ) } #1
       { \bool_set_true:N \l__leanquote_proof_bar_bool }
       { \bool_set_false:N \l__leanquote_proof_bar_bool }
     \regex_extract_once:nVNT { \A \s* \S } #1 \l__leanquote_literal_seq
@@ -988,7 +991,15 @@
                   }
                 {124}
                   {
-                    \int_compare:nNnT { \l__leanquote_depth_int } = {0}
+                    \bool_lazy_all:nT
+                      {
+                        { \int_compare_p:nNn { \l__leanquote_depth_int } = {0} }
+                        { ! \int_compare_p:nNn { \l__leanquote_prev_int } = {124} }
+                        { ! \str_if_eq_p:ee
+                            { \str_item:Nn #1 { \l__leanquote_pos_int + 1 } } {|} }
+                        { ! \str_if_eq_p:ee
+                            { \str_item:Nn #1 { \l__leanquote_pos_int + 1 } } {>} }
+                      }
                       {
                         \__leanquote_proof_top:
                         \str_case:VnF \l__leanquote_proof_kind_str
