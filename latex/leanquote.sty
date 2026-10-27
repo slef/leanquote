@@ -599,6 +599,11 @@
         \str_case:Vn \l__leanquote_proof_word_str
           {
             {match} { \__leanquote_proof_frame:n {match} }
+            {do}
+              {
+                \seq_put_right:Ne \l__leanquote_proof_terms_seq
+                  { {do} { \int_use:N \l__leanquote_proof_indent_int } }
+              }
             {let} { \__leanquote_proof_frame:n {lhs} }
             {have} { \__leanquote_proof_frame:n {lhs} }
             {letI} { \__leanquote_proof_frame:n {lhs} }
@@ -634,9 +639,13 @@
             \seq_map_indexed_inline:Nn \l__leanquote_proof_terms_seq
               {
                 \str_set:Ne \l__leanquote_proof_kind_str { \tl_head:n {##2} }
-                \bool_lazy_or:nnT
-                  { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {rhs} }
-                  { \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} }
+                \bool_if:nT
+                  {
+                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {rhs} ||
+                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {equations} ||
+                    \str_if_eq_p:Vn \l__leanquote_proof_kind_str {do}
+                  }
+                  % RHS terms and do blocks end at their layout boundary.
                   {
                     \int_compare:nT { \l__leanquote_proof_indent_int <= \tl_item:nn {##2} {2} }
                       { \int_set:Nn \l__leanquote_proof_pop_int {##1} \seq_map_break: }
@@ -695,8 +704,11 @@
                     \int_compare:nNnT { \l__leanquote_depth_int } = {0}
                       {
                         \__leanquote_proof_end_matches:
-                        \seq_if_empty:NF \l__leanquote_proof_terms_seq
-                          { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
+                        \str_if_eq:VnF \l__leanquote_proof_kind_str {do}
+                          {
+                            \seq_if_empty:NF \l__leanquote_proof_terms_seq
+                              { \seq_pop_right:NN \l__leanquote_proof_terms_seq \l_tmpa_tl }
+                          }
                       }
                   }
                 {124}
@@ -725,7 +737,10 @@
                         \__leanquote_proof_end_matches:
                         \str_if_eq:VnTF \l__leanquote_proof_kind_str {lhs}
                           { \__leanquote_proof_stage:n {value} }
-                          { \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 } }
+                          {
+                            \str_if_eq:VnF \l__leanquote_proof_kind_str {do}
+                              { \int_set:Nn \l__leanquote_cut_int { \l__leanquote_pos_int - 1 } }
+                          }
                       }
                   }
               }
@@ -898,9 +913,38 @@
 \str_new:N \l__leanquote_namespace_str
 \bool_new:N \l__leanquote_indoc_bool
 \bool_new:N \l__leanquote_consumed_bool
+\int_new:N \l__leanquote_source_depth_int
+\bool_new:N \l__leanquote_source_nested_bool
+\cs_new_protected:Npn \__leanquote_source_brackets:
+  {
+    % Bracketed terms, including syntax quotations, can contain column-zero
+    % commands belonging to the enclosing declaration.
+    \bool_set:Nn \l__leanquote_source_nested_bool
+      { \int_compare_p:nNn { \l__leanquote_source_depth_int } > {0} }
+    \int_step_inline:nn { \str_count:N \l__leanquote_code_str }
+      {
+        \str_if_eq:eeT { \str_item:Nn \l__leanquote_classes_str {##1} } {k}
+          {
+            \str_set:Ne \l_tmpa_str { \str_item:Nn \l__leanquote_code_str {##1} }
+            \str_case:Vn \l_tmpa_str
+              {
+                {(} { \int_incr:N \l__leanquote_source_depth_int }
+                {[} { \int_incr:N \l__leanquote_source_depth_int }
+                {)} { \int_decr:N \l__leanquote_source_depth_int }
+                {]} { \int_decr:N \l__leanquote_source_depth_int }
+              }
+            \str_if_eq:eeT { \l_tmpa_str } { \c_left_brace_str }
+              { \int_incr:N \l__leanquote_source_depth_int }
+            \str_if_eq:eeT { \l_tmpa_str } { \c_right_brace_str }
+              { \int_decr:N \l__leanquote_source_depth_int }
+          }
+      }
+  }
 \cs_new_protected:Npn \__leanquote_src_inside:n #1
   {
-    \bool_if:NTF \l__leanquote_string_continuation_bool
+    \bool_lazy_or:nnTF
+      { \l__leanquote_string_continuation_bool }
+      { \l__leanquote_source_nested_bool }
       { \__leanquote_src_continue:n {#1} }
       {
         \regex_match:nVTF { \A \s* \Z } \l__leanquote_code_str
@@ -1143,6 +1187,7 @@
     \bool_set_false:N \l__leanquote_found_bool
     \bool_set_false:N \l__leanquote_indoc_bool
     \int_zero:N \l__leanquote_matches_int
+    \int_zero:N \l__leanquote_source_depth_int
     \__leanquote_lex_reset:
     \str_clear:N \l__leanquote_namespace_str
     \seq_clear:N \l__leanquote_scope_seq
@@ -1155,8 +1200,12 @@
         \bool_set_false:N \l__leanquote_consumed_bool
         \str_set:Nn \l__leanquote_line_str {##1}
         \__leanquote_lex:N \l__leanquote_line_str
+        \__leanquote_source_brackets:
         \bool_if:NT \l__leanquote_inside_bool { \__leanquote_src_inside:n {##1} }
-        \bool_if:NF \l__leanquote_consumed_bool { \__leanquote_src_outside:n {##1} }
+        \bool_lazy_or:nnF
+          { \l__leanquote_consumed_bool }
+          { \l__leanquote_source_nested_bool }
+          { \__leanquote_src_outside:n {##1} }
       }
     \ior_close:N \g__leanquote_ior
   }

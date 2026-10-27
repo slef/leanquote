@@ -338,6 +338,22 @@ class ParsingTests(unittest.TestCase):
                 _, output = self.compile(COMMENTS, r"\leanquote{" + name + "}", success=False)
                 self.assertIn("not found", output)
 
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_syntax_quotation_cannot_expose_verified_phantom(self):
+        lean = ("import Lean\nopen Lean\n"
+                "def quoted : MacroM (TSyntax `command) := `(command|\n"
+                "def phantom : Nat := 99\n)\n"
+                "def afterQuote : Nat := 1\n")
+        _, output = self.compile(lean,
+            r"\leanquote[olean=Fixture.olean,verify=true]{phantom}", success=False, olean=True)
+        self.assertIn("not found", output)
+        snippets, _ = self.compile(lean, r"\leanquote{quoted}\leanquote{afterQuote}")
+        self.assertEqual(snippets, [
+            "def quoted : MacroM (TSyntax `command) := `(command|\n"
+            "def phantom : Nat := 99\n)",
+            "def afterQuote : Nat := 1",
+        ])
+
     def test_inline_attributes_do_not_leak_metadata(self):
         snippets, _ = self.compile(METADATA, r"\leanquote[doc]{wanted}\leanquote[doc]{kept}")
         self.assertEqual(snippets, [
@@ -374,9 +390,15 @@ class ParsingTests(unittest.TestCase):
             "theorem proofHave : have p := True; p := by trivial",
             "theorem proofNested : let p := let q := True; q; p := by trivial",
             "theorem proofMultiline :\n  let p := True\n  have q := p\n  q := by trivial",
+            "theorem doType :\n    Id.run do\n      let mut p := False\n"
+            "      p := True\n      return p\n := by trivial",
+            "theorem doAssigned :\n    Id.run do\n      let mut p := False\n"
+            "      if true then\n        p := True\n      return p\n := by trivial",
+            "theorem doSemicolon :\n    Id.run do\n      let mut p := False; p := True\n"
+            "      return p\n := by trivial",
         ]
         lean = "\n".join(declarations) + "\n"
-        names = ["proofLet", "proofHave", "proofNested", "proofMultiline"]
+        names = [decl.split()[1] for decl in declarations]
         body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
         snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
         expected = [decl.rsplit(" := by", 1)[0] + " := ..." for decl in declarations]
