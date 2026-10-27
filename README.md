@@ -48,6 +48,8 @@ With `project=../lean/`, `.lean` paths are relative to that directory; include i
 slash. Without `project`, paths are relative to the LaTeX working directory. Explicit
 `.leanquote` paths and the `olean`, `source`, and `logo` options are used as supplied,
 without a `project` prefix.
+Path options accept expandable macros, evaluated when each quote runs; for example,
+`\leanquotesetup{file=\LeanFile}` can refer to a macro defined or changed later.
 
 The Boolean `imports` option prepends the import block once, before the named declarations,
 in the same listing. `\leanquote[imports]{}` quotes only that block: the `module`, `prelude`, and
@@ -84,6 +86,8 @@ shell escape:
   When a compiled file is available, its timestamp is compared with the source. A current v2
   export also checks axiom dependencies against its recorded Lake build fingerprint; rebuilding
   an imported proof invalidates that fingerprint even if the quoted source is unchanged.
+  Automatic exports supply build paths only when their recorded source path identifies the
+  selected file; unrelated sidecars are ignored.
   Without an export, a `sorry` in an imported file is not seen.
   `verify=false` disables verification marks and axiom/build checks.
 

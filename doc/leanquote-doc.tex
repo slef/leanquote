@@ -20,7 +20,7 @@
 \title{The \textsf{leanquote} package\\[0.3em]
   \large Quote Lean declarations in \LaTeX{} by name}
 \author{Stefan Langerman \and Erik D. Demaine}
-\date{Version 0.19, 2026-10-26\\\url{https://github.com/slef/leanquote}}
+\date{Version 0.19, 2026-10-27\\\url{https://github.com/slef/leanquote}}
 
 \begin{document}
 \sloppy
@@ -115,10 +115,9 @@ lines. For instance, \verb|\leanquote[imports]{}| gives:
 
 \noindent Names may be short (\texttt{Tiles}) or qualified
 (\texttt{TranslationTiling.Abstract.Tiles}). A qualified name matches a declaration inside the
-corresponding \texttt{namespace}: the requested name must be the full name or a dotted suffix
-of it. Namespace and section scope are tracked, including escaped name components such as
-\texttt{«A B».foo}. An unknown name is an error; an ambiguous short name is a warning,
-and the first match is used.
+corresponding \texttt{namespace}, by its full name or a dotted suffix. Namespace and section
+scope are tracked, including escaped components such as \texttt{«A B».foo}. An unknown name
+is an error; an ambiguous short name warns and uses the first match.
 
 With \opt{proof=false}, theorems and lemmas are shown without their proofs, which the reader
 does not need in order to check the statement; definitions keep their bodies:
@@ -129,7 +128,8 @@ does not need in order to check the statement; definitions keep their bodies:
 \leanquote[proof=false]{tiling_coRE_complete}
 
 \noindent Proof hiding preserves local \texttt{let}/\texttt{have} bindings,
-\texttt{match} expressions, and \texttt{do} blocks in the statement.
+\texttt{match} expressions, and \texttt{do} blocks in the statement, including monadic
+bindings and \texttt{if let} branches.
 Brackets, literals, comments, escaped names, and default parameter values such as
 \texttt{(k :} $\mathbb{N}$ \texttt{:= 3)} do not act as proof delimiters.
 A \texttt{where} proof is omitted as a whole.
@@ -173,8 +173,8 @@ any other key & & passed to \textsf{listings} (e.g.\ \opt{numbers=left}) \\
 \end{tabular}
 \end{center}
 
-Options from \cs{leanquotesetup} apply within the current group; per-call options override
-them. Listings settings (any other key) are added to the setup settings.
+\cs{leanquotesetup} follows group scope; per-call options override it. Path macros expand
+when quoting. Other keys add to the setup's \textsf{listings} settings.
 
 \section{Lean listing format}
 
@@ -318,6 +318,8 @@ Mark & Meaning \\
 When a compiled file is present, its timestamp is compared with the source. An export's
 axiom list is checked against the dependency fingerprint of its Lake build: if an imported
 proof changes and the module is rebuilt, re-export before relying on its axiom information.
+Automatic exports supply build paths only when their recorded source path identifies the
+selected file; unrelated sidecars are ignored.
 
 The \opt{verify} option chooses how strict to be:
 \begin{center}
@@ -475,17 +477,19 @@ authors on presenting the formal statements of machine-checked results to human 
 \begin{description}
 \setlength{\itemsep}{0pt}
 \setlength{\parsep}{0pt}
-\item[0.19 (2026-10-26)] Lean-aware highlighting for raw/interpolated strings (including gaps), characters,
+\item[0.19 (2026-10-27)] Lean-aware highlighting for raw/interpolated strings (including gaps), characters,
   escaped identifiers, and expanded vocabulary; configurable literal color. Distinguish
   known interpolators from ordinary bang functions. Fix Unicode order/scope, escaped names,
   quoted commands, \texttt{class inductive} lookup, import command boundaries,
-  and failed-build verification. Preserve statement operators, local bindings, equations, branching \texttt{do}
-  blocks, and exception handlers when hiding proofs; close inner control-flow scopes at
+  and failed-build verification. Preserve statement operators, local bindings, equations,
+  branching \texttt{do} blocks, monadic bindings, conditional patterns, and exception handlers
+  when hiding proofs; close inner control-flow scopes at
   the next match alternative and hide \texttt{where} proofs. Respect indentation and
   \opt{gobble}, line-selection context, TeX escapes,
   trailing TeX after listing environments, starred replacements, replacement widths,
   \opt{texcl}, and \opt{showstringspaces}. Preserve snapshot tabs, normalize exported names,
-  and reject unsafe metadata. Bound regression fixtures per TeX process.
+  and reject unsafe metadata. Validate automatic export source identity before adopting build
+  paths; expand filename macros at quote time. Bound regression fixtures per TeX process.
 \item[0.18 (2026-10-26)] Two-command quoting interface: \cs{leanquotesetup} selects
   the default file, and the Boolean \opt{imports} option prepends imports or quotes them
   alone. Direct \opt{boxback} and \opt{boxframe} color options.
