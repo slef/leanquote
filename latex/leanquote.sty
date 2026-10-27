@@ -382,25 +382,37 @@
           { \str_range:Nnn #1 { \l__leanquote_scan_int } { \l__leanquote_identifier_end_int } }
         \str_put_right:NV \l__leanquote_code_str \l__leanquote_identifier_str
         \__leanquote_message_prefix:N #1
+        \bool_set_false:N \l__leanquote_interpolated_bool
+        \bool_if:nT
+          {
+            ! \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_scan_int - 1 } } {.} &&
+            ! \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_identifier_end_int + 1 } } {.}
+          }
+          {
+            \str_case:Vn \l__leanquote_identifier_str
+              {
+                {s!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {m!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {f!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {println!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {reportIssue!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {reportDbgIssue!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+                {reportEMatchIssue!} { \bool_set_true:N \l__leanquote_interpolated_bool }
+              }
+          }
         \int_set_eq:NN \l__leanquote_scan_int \l__leanquote_identifier_end_int
-        \bool_set:Nn \l__leanquote_interpolated_bool
-          { \str_if_eq_p:ee { \str_item:Nn #1 { \l__leanquote_scan_int } } {!} }
       }
       { \__leanquote_lex_plain: }
   }
 \cs_new_protected:Npn \__leanquote_lex_plain:
   {
     \str_put_right:NV \l__leanquote_code_str \l__leanquote_char_str
-    % Conventional interpolators (s!, m!, custom name!) may have
-    % whitespace and comments between their token and the quote.
-    \str_if_eq:VnTF \l__leanquote_char_str {!}
-      { \bool_set_true:N \l__leanquote_interpolated_bool }
+    % Known interpolators may have whitespace/comments before their quote.
+    % A standalone ! or an arbitrary bang-suffixed function is not evidence.
+    \bool_if:NT \l__leanquote_interpolated_bool
       {
-        \bool_if:NT \l__leanquote_interpolated_bool
-          {
-            \regex_match:nVF { \A \s \Z } \l__leanquote_char_str
-              { \bool_set_false:N \l__leanquote_interpolated_bool }
-          }
+        \regex_match:nVF { \A \s \Z } \l__leanquote_char_str
+          { \bool_set_false:N \l__leanquote_interpolated_bool }
       }
   }
 \cs_new_protected:Npn \__leanquote_mask_pair:

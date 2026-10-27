@@ -391,6 +391,17 @@ class ParsingTests(unittest.TestCase):
             "/-- Kept documentation. -/\n@[simp]\ndef kept : Nat := 3",
         ])
 
+    @unittest.skipUnless(shutil.which("lean"), "Lean is not installed")
+    def test_bang_functions_do_not_start_interpolation(self):
+        lean = ('def number : Nat := String.toNat! "{"\n'
+                'open String\n'
+                'def another : Nat := toNat! "{"\n'
+                'def echo! (text : String) : String := text\n'
+                'def text : String := echo! "{ ordinary"\n'
+                'def target : Nat := 1\n')
+        snippets, _ = self.compile(lean, r"\leanquote{target}", olean=True)
+        self.assertEqual(snippets, ["def target : Nat := 1"])
+
     def test_proof_hiding_uses_lexical_state_and_modifiers(self):
         snippets, _ = self.compile(PROOFS, r'''
 \leanquote[proof=false]{escaped}

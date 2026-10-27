@@ -237,6 +237,21 @@ def nested : String := s!"outer {s!"inner {Nat.succ 1}"} tail"
         self.assert_paint(rendered, 'literal', 6, (153/255, 77/255, 0))
         self.assert_paint(rendered, 'def', 7, (41/255, 110/255, 166/255))
 
+    def test_known_interpolators_and_ordinary_bang_functions(self):
+        rendered = self.render(
+            'import Lean\nopen String\n'
+            'def s := s!"{Nat.succ 1}"\n'
+            'def m := m!"{Nat.succ 1}"\n'
+            'def f := f!"{Nat.succ 1}"\n'
+            'def n := String.toNat! "{ Nat"\n'
+            'def u := toNat! "{ Nat"\n'
+            'def after := 1\n')
+        for line in [3, 4, 5]:
+            self.assert_paint(rendered, "Nat", line, (38/255, 128/255, 89/255))
+        for line in [6, 7]:
+            self.assert_paint(rendered, "Nat", line, (153/255, 77/255, 0))
+        self.assert_paint(rendered, "def", 8, (41/255, 110/255, 166/255))
+
     def test_character_literals_touching_operators_keep_lexical_context(self):
         code = ('def character : Unit → Char := fun _ =>'+chr(39)+chr(34)+chr(39)+'\n'
                 "def αname' : Nat := 1\n"
