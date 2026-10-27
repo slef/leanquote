@@ -2094,7 +2094,6 @@
 % literals, and escaped names. Keep listings for layout and keyword customization.
 \str_new:N \l__leanquote_render_line_str
 \str_new:N \l__leanquote_render_classes_str
-\tl_new:N \l__leanquote_render_tokens_tl
 \int_new:N \l__leanquote_render_index_int
 \int_new:N \l__leanquote_render_start_int
 \int_new:N \l__leanquote_render_cp_int
@@ -2422,6 +2421,7 @@
     \lst@length = 1 \scan_stop: \lst@XPrintToken
   }
 \cs_new_eq:NN \__leanquote_render_bol: \lst@BOLGobble
+\cs_new_eq:NN \__leanquote_render_skip: \lst@SkipToFirst
 \cs_new_eq:NN \__leanquote_render_output: \lst@OutputToken
 \cs_new_eq:NN \__leanquote_render_inline_end: \lst@InlineGJEnd
 \cs_new_eq:NN \__leanquote_render_inline_m: \lst@InlineM
@@ -2486,46 +2486,12 @@
     \lst@temp
   }
 \group_end:
-\cs_new_protected:Npn \__leanquote_render_next:
-  {
-    \peek_meaning:NTF \lst@DeInit
-      { \__leanquote_render_bol: }
-      { \__leanquote_render_line:w }
-  }
-\cs_new_protected:Npn \__leanquote_render_emit:n #1
-  {
-    \sys_if_engine_pdftex:TF
-      { \__leanquote_render_bol: #1 }
-      {
-        \tl_clear:N \l__leanquote_render_tokens_tl
-        \tl_analysis_map_inline:nn {#1}
-          {
-            \int_compare:nNnTF {##2} > {127}
-              {
-                \cs_if_exist:cTF { __leanquote_u_ \int_eval:n {##2} }
-                  { \tl_put_right:Ne \l__leanquote_render_tokens_tl
-                      { \exp_not:c { __leanquote_u_ \int_eval:n {##2} } } }
-                  { \tl_put_right:Ne \l__leanquote_render_tokens_tl
-                      { \exp_not:N \__leanquote_render_native:n {##2} } }
-              }
-              { \tl_put_right:Ne \l__leanquote_render_tokens_tl {##1} }
-          }
-        \exp_after:wN \__leanquote_render_bol: \l__leanquote_render_tokens_tl
-      }
-  }
-\use:e
-  {
-    \cs_new_protected:Npn \exp_not:N \__leanquote_render_line:w #1 \char_generate:nn {13} {13}
-      {
-        \exp_not:N \__leanquote_render_prepare:n {#1}
-        \exp_not:N \__leanquote_render_emit:n {#1} \char_generate:nn {13} {13}
-      }
-  }
-% With TeX escapes, an environment must be retokenized as a whole: eagerly
-% tokenizing one line would freeze TeX commands with listings' active catcodes.
+% Capture the complete environment before line selection. This preserves lexical
+% context across omitted lines and leaves text after the closing command unread.
+% Retokenizing the body also preserves the catcodes needed by TeX escapes.
 \seq_new:N \l__leanquote_render_lines_seq
 \cs_new_protected:Npn \__leanquote_render_begin:
-  { \group_end: \__leanquote_render_bol: }
+  { \group_end: \__leanquote_render_skip: }
 \cs_new_protected:Npn \__leanquote_render_environment_content:n #1
   {
     % Prepare outside the initial Pmode group, so maps and the original BOL
@@ -2558,6 +2524,9 @@
   }
 \cs_new_protected:Npn \__leanquote_render_environment:
   {
+    % Capture before listings discards firstline/linerange prefixes. Restore its
+    % selection routine for the replay, whose maps already cover the whole input.
+    \cs_set_eq:NN \lst@SkipToFirst \__leanquote_render_skip:
     \tl_set:Ne \l_tmpa_tl
       { \char_generate:nn {92} {12} \tl_to_str:o { \lstenv@endstring } }
     \exp_args:NNV \lst@DefActive \l_tmpb_tl \l_tmpa_tl
@@ -2581,10 +2550,8 @@
       \str_clear:N \l__leanquote_render_classes_str
       \tl_if_empty:oTF { \lst@intname }
         {
-          \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_next:
           \lst@ifdisplaystyle
-            \bool_if:NT \l__leanquote_escape_tex_bool
-              { \cs_set_eq:NN \lst@BOLGobble \__leanquote_render_environment: }
+            \cs_set_eq:NN \lst@SkipToFirst \__leanquote_render_environment:
           \fi
         }
         {

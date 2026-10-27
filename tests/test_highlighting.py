@@ -59,6 +59,30 @@ class HighlightingTests(TexTestCase):
         self.assert_paint(rendered, 'by', 2, (41/255, 110/255, 166/255))
         self.assert_paint(rendered, 'trivial', 2, (136/255, 84/255, 150/255))
 
+    def test_environment_selection_preserves_omitted_lexical_context(self):
+        code = "/- outer\ninner\nsorry Nat -/\ndef after : Nat := 1\n"
+        for options in ["firstline=3", "firstline=3,mathescape"]:
+            rendered = self.render("", body="\\begin{lstlisting}[style=leanquote," +
+                options + "]\n" + code + "\\end{lstlisting}\n")
+            self.assert_paint(rendered, "sorry", 3, (.4, .4, .4))
+            self.assert_paint(rendered, "Nat", 3, (.4, .4, .4))
+            self.assert_paint(rendered, "def", 4, (41/255, 110/255, 166/255))
+        code = 'def raw : String := r#"first\n-- \\notARealCommand\nlast"#\ndef after : Nat := 1\n'
+        rendered = self.render("", body=
+            "\\begin{lstlisting}[style=leanquote,firstline=2,texcl=true]\n" +
+            code + "\\end{lstlisting}\n")
+        self.assert_paint(rendered, "notARealCommand", 2, (153/255, 77/255, 0))
+        self.assert_paint(rendered, "def", 4, (41/255, 110/255, 166/255))
+
+    def test_text_after_environment_close_keeps_tex_catcodes(self):
+        for options in ["", ",mathescape", ",texcl=true"]:
+            with self.subTest(options=options):
+                _, output = self.compile_tex({}, "\\begin{lstlisting}[style=leanquote" +
+                    options + "]\ndef value : Nat := 1\n" +
+                    r"\end{lstlisting}\LQafter{After}" + "\n",
+                    preamble=r"\newcommand{\LQafter}[1]{\typeout{LQ-AFTER:#1}\textbf{#1}}")
+                self.assertIn("LQ-AFTER:After", output)
+
     def test_tex_escapes_in_environments_and_inline_listings(self):
         rendered = self.render("", body=r"""
 \begin{lstlisting}[style=leanquote,escapeinside={(*@}{@*)}]
