@@ -155,21 +155,20 @@
 \seq_new:N \l__leanquote_file_lines_seq
 \int_new:N \l__leanquote_file_size_int
 \int_new:N \l__leanquote_file_offset_int
-\bool_new:N \l__leanquote_file_map_bool
 \cs_generate_variant:Nn \str_set_convert:Nnnn { NVnn }
 \cs_generate_variant:Nn \seq_set_split_keep_spaces:Nnn { NeV }
 \cs_new_protected:Npn \__leanquote_file_map_break:
-  { \bool_set_false:N \l__leanquote_file_map_bool \seq_map_break: }
+  {
+    \int_set:Nn \l__leanquote_file_offset_int { \l__leanquote_file_size_int + 1 }
+    \seq_map_break:
+  }
 \cs_new_protected:Npn \__leanquote_map_file:nn #1#2
   {
     \cs_set_protected:Npn \__leanquote_file_line:n ##1 {#2}
     \int_set:Nn \l__leanquote_file_size_int { \file_size:n {#1} }
     \int_set:Nn \l__leanquote_file_offset_int {1}
     \str_clear:N \l__leanquote_file_pending_str
-    \bool_set_true:N \l__leanquote_file_map_bool
-    \bool_while_do:nn
-      { \l__leanquote_file_map_bool &&
-        \int_compare_p:n { \l__leanquote_file_offset_int <= \l__leanquote_file_size_int } }
+    \int_while_do:nNnn { \l__leanquote_file_offset_int } < { \l__leanquote_file_size_int + 1 }
       {
         % Bound TeX memory usage for large modules. Split raw bytes into lines
         % before UTF-8 decoding, so a character or CRLF can cross a chunk boundary.
@@ -703,31 +702,17 @@
 \int_new:N \l__leanquote_proof_word_start_int
 \bool_new:N \l__leanquote_intheorem_bool
 \bool_new:N \l__leanquote_proof_uncertain_bool
-\bool_new:N \l__leanquote_prepared_bool
 \str_new:N \l__leanquote_line_str
 \str_new:N \l__leanquote_proof_word_str
 \str_new:N \l__leanquote_proof_body_str
 \seq_new:N \l__leanquote_statement_seq
 \cs_generate_variant:Nn \tl_item:nn { Vn }
-\cs_generate_variant:Nn \str_replace_all:Nnn { Nne }
 \msg_new:nnn { leanquote } { proof-not-hidden }
   { Cannot~safely~hide~the~proof~of~#1~in~#2;~showing~the~complete~declaration.~
     Use~a~current~export~with~a~Lean-derived~statement~view. }
 \cs_new_protected:Npn \__leanquote_proof_warning:
   { \msg_warning:nnVV { leanquote } { proof-not-hidden }
       \l__leanquote_name_str \l__leanquote_file_str }
-\cs_new_protected:Npn \__leanquote_proof_brackets:
-  {
-    % Preserve source offsets when pdfTeX represents a delimiter as UTF-8 bytes.
-    \str_replace_all:Nne \l__leanquote_code_str { ⟨ }
-      { ( \prg_replicate:nn { \str_count:n {⟨} - 1 } { \c_space_tl } }
-    \str_replace_all:Nne \l__leanquote_code_str { ⦃ }
-      { ( \prg_replicate:nn { \str_count:n {⦃} - 1 } { \c_space_tl } }
-    \str_replace_all:Nne \l__leanquote_code_str { ⟩ }
-      { ) \prg_replicate:nn { \str_count:n {⟩} - 1 } { \c_space_tl } }
-    \str_replace_all:Nne \l__leanquote_code_str { ⦄ }
-      { ) \prg_replicate:nn { \str_count:n {⦄} - 1 } { \c_space_tl } }
-  }
 \cs_new_protected:Npn \__leanquote_proof_word:
   {
     \bool_if:nT
@@ -739,31 +724,11 @@
             { \str_item:Nn \l__leanquote_code_str { \l__leanquote_pos_int } } {.}
       }
       {
-        \str_case:VnF \l__leanquote_proof_word_str
-          {
-            {where} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {let} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {have} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {letI} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {haveI} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {let_fun} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {let_delayed} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {let_tmp} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {let_} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {fun} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {match} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {nomatch} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {do} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {if} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {try} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {for} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {unless} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {while} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {by} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {calc} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-            {show} { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
-          }
-          { }
+        \regex_match:nVT
+          { \A (?:where|let|have|letI|haveI|let_fun|let_delayed|let_tmp|let_|fun|
+                   match|nomatch|do|if|try|for|unless|while|by|calc|show) \Z }
+          \l__leanquote_proof_word_str
+          { \bool_set_true:N \l__leanquote_proof_uncertain_bool }
       }
     \str_clear:N \l__leanquote_proof_word_str
   }
@@ -792,9 +757,13 @@
                 {40} { \int_incr:N \l__leanquote_depth_int }
                 {91} { \int_incr:N \l__leanquote_depth_int }
                 {123} { \int_incr:N \l__leanquote_depth_int }
+                {10216} { \int_incr:N \l__leanquote_depth_int } % ⟨
+                {10627} { \int_incr:N \l__leanquote_depth_int } % ⦃
                 {41} { \int_decr:N \l__leanquote_depth_int }
                 {93} { \int_decr:N \l__leanquote_depth_int }
                 {125} { \int_decr:N \l__leanquote_depth_int }
+                {10217} { \int_decr:N \l__leanquote_depth_int } % ⟩
+                {10628} { \int_decr:N \l__leanquote_depth_int } % ⦄
                 {955}
                   { \int_compare:nNnT { \l__leanquote_depth_int } = {0}
                       { \bool_set_true:N \l__leanquote_proof_uncertain_bool } }
@@ -842,7 +811,7 @@
               { \bool_set_true:N \l__leanquote_intheorem_bool }
           }
         \bool_if:NT \l__leanquote_intheorem_bool
-          { \__leanquote_proof_brackets: \__leanquote_find_cut:N \l__leanquote_code_str }
+          { \__leanquote_find_cut:N \l__leanquote_code_str }
         \bool_if:NT \l__leanquote_proof_uncertain_bool { \seq_map_break: }
         \int_compare:nNnTF { \l__leanquote_cut_int } > {0}
           {
@@ -890,7 +859,10 @@
   }
 \cs_new_protected:Npn \__leanquote_flush:
   {
-    \bool_if:nT { ! \l_leanquote_proof_bool && ! \l__leanquote_prepared_bool }
+    \bool_if:nT
+      { ! \l_leanquote_proof_bool &&
+        ( ! \l__leanquote_useexport_bool ||
+          ! \str_if_eq_p:Vn \l__leanquote_export_version_str {3} ) }
       { \__leanquote_prepare_statement: }
     \seq_map_inline:Nn \l__leanquote_buf_seq { \iow_now:Nn \g__leanquote_iow {##1} }
     \seq_clear:N \l__leanquote_buf_seq
@@ -964,7 +936,7 @@
           }
       }
   }
-\cs_new_protected:Npn \__leanquote_from_export:n #1
+\cs_new_protected:Npn \__leanquote_from_export:
   {
     \bool_set_false:N \l__leanquote_inside_bool
     \bool_set_false:N \l__leanquote_found_bool
@@ -973,7 +945,7 @@
     \seq_clear:N \l__leanquote_statement_seq
     \str_clear:N \l__leanquote_export_kind_str
     \int_zero:N \l__leanquote_matches_int
-    \__leanquote_map_file:nn {#1}
+    \seq_map_inline:Nn \l__leanquote_export_lines_seq
       {
         \bool_if:NTF \l__leanquote_inside_bool
           {
@@ -1015,14 +987,13 @@
           }
       }
     \bool_if:NT \l__leanquote_inside_bool
-      { \msg_error:nnn { leanquote } { export-payload } {#1} }
+      { \msg_error:nnV { leanquote } { export-payload } \l__leanquote_export_str }
     \bool_if:NT \l__leanquote_found_bool
       {
         \str_if_eq:VnT \l__leanquote_export_version_str {3}
           {
-            \bool_set_true:N \l__leanquote_prepared_bool
             \str_if_empty:NT \l__leanquote_export_kind_str
-              { \msg_error:nnn { leanquote } { export-payload } {#1} }
+              { \msg_error:nnV { leanquote } { export-payload } \l__leanquote_export_str }
             \bool_if:nT
               { ! \l_leanquote_proof_bool && \str_if_eq_p:Vn \l__leanquote_export_kind_str {theorem} }
               {
@@ -1038,7 +1009,7 @@
       { { \l_leanquote_check_bool } { \l__leanquote_found_bool } { ! \l__leanquote_hasaxioms_bool } }
       {
         \bool_set_true:N \l__leanquote_unverified_bool
-        \msg_warning:nnnV { leanquote } { export-axioms } {#1} \l__leanquote_name_str
+        \msg_warning:nnVV { leanquote } { export-axioms } \l__leanquote_export_str \l__leanquote_name_str
       }
   }
 
@@ -1494,6 +1465,8 @@
 
 % ---------------------------------------------------------------- export metadata and freshness
 % Source snapshots are sequences: no character can collide with a line separator.
+% Keep the loaded export for declaration selection as well as metadata checks.
+\seq_new:N \l__leanquote_export_lines_seq
 \seq_new:N \l__leanquote_stored_seq
 \seq_new:N \l__leanquote_current_seq
 \seq_new:N \l__leanquote_metadata_seq
@@ -1521,10 +1494,9 @@
   { File~#1~is~not~a~supported~leanquote~export~(versions~1,~2,~and~3). }
 \msg_new:nnn { leanquote } { export-payload }
   { Malformed~export~#1:~expected~framed~code,~statement,~or~metadata.~Run~leanquote-export. }
-\cs_generate_variant:Nn \regex_extract_once:nnNTF { nV }
-
 \cs_new_protected:Npn \__leanquote_load_export:n #1
   {
+    \seq_clear:N \l__leanquote_export_lines_seq
     \seq_clear:N \l__leanquote_stored_seq
     \str_clear:N \l__leanquote_srcpath_str
     \str_clear:N \l__leanquote_recorded_source_str
@@ -1533,20 +1505,29 @@
     \str_clear:N \l__leanquote_export_version_str
     \__leanquote_map_file:nn {#1}
       {
-        \regex_extract_once:nnNT { \A @@leanquote-export \s+ ([123]) \Z }
-          {##1} \l__leanquote_metadata_seq
-          { \str_set:Ne \l__leanquote_export_version_str { \seq_item:Nn \l__leanquote_metadata_seq {2} } }
-        \regex_match:nnT { \A @@src (\x{20} | \Z) } {##1}
-          { \seq_put_right:Ne \l__leanquote_stored_seq { \str_range:nnn {##1} {7} {-1} } }
-        \regex_match:nnT { \A @@source\x{20} } {##1}
+        \seq_put_right:Nn \l__leanquote_export_lines_seq {##1}
+        % Framed payloads need no metadata matching over their contents.
+        \exp_args:Ne \str_case:nnF { \str_range:nnn {##1} {1} {6} }
           {
-            \str_set:Ne \l__leanquote_recorded_source_str { \str_range:nnn {##1} {10} {-1} }
-            \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \l__leanquote_recorded_source_str }
+            {@@src~}
+              { \seq_put_right:Ne \l__leanquote_stored_seq { \str_range:nnn {##1} {7} {-1} } }
+            {@@src} { \seq_put_right:Nn \l__leanquote_stored_seq {} }
+            {@@code} {} {@@doc~} {} {@@doc} {} {@@stat} {}
           }
-        \regex_match:nnT { \A @@olean\x{20} } {##1}
-          { \str_set:Ne \l__leanquote_recorded_olean_str { \str_range:nnn {##1} {9} {-1} } }
-        \regex_match:nnT { \A @@trace\x{20} } {##1}
-          { \str_set:Ne \l__leanquote_recorded_trace_str { \str_range:nnn {##1} {9} {-1} } }
+          {
+            \regex_extract_once:nnNT { \A @@leanquote-export \s+ ([123]) \Z }
+              {##1} \l__leanquote_metadata_seq
+              { \str_set:Ne \l__leanquote_export_version_str { \seq_item:Nn \l__leanquote_metadata_seq {2} } }
+            \regex_match:nnT { \A @@source\x{20} } {##1}
+              {
+                \str_set:Ne \l__leanquote_recorded_source_str { \str_range:nnn {##1} {10} {-1} }
+                \str_set:Ne \l__leanquote_srcpath_str { \l_leanquote_root_tl \l__leanquote_recorded_source_str }
+              }
+            \regex_match:nnT { \A @@olean\x{20} } {##1}
+              { \str_set:Ne \l__leanquote_recorded_olean_str { \str_range:nnn {##1} {9} {-1} } }
+            \regex_match:nnT { \A @@trace\x{20} } {##1}
+              { \str_set:Ne \l__leanquote_recorded_trace_str { \str_range:nnn {##1} {9} {-1} } }
+          }
       }
     \str_if_empty:NT \l__leanquote_export_version_str
       { \msg_error:nnn { leanquote } { export-version } {#1} }
@@ -1632,10 +1613,10 @@
       }
       {
         \__leanquote_export_olean:
+        \str_set:Ne \l__leanquote_trace_str
+          { \str_range:Nnn \l_leanquote_olean_tl {1} {-7} .trace }
         \file_if_exist:VTF \l_leanquote_olean_tl
           {
-            \str_set:Ne \l__leanquote_trace_str
-              { \str_range:Nnn \l_leanquote_olean_tl {1} {-7} .trace }
             \file_if_exist:VT \l__leanquote_trace_str
               {
                 \str_clear:N \l__leanquote_trace_contents_str
@@ -1655,8 +1636,6 @@
               }
           }
           {
-            \str_set:Ne \l__leanquote_trace_str
-              { \str_range:Nnn \l_leanquote_olean_tl {1} {-7} .trace }
             % A surviving trace with no artifact is evidence of a failed local
             % build, not a portable export with no local build to check.
             \file_if_exist:VF \l__leanquote_trace_str
@@ -1720,7 +1699,6 @@
       { \msg_warning:nnnn { leanquote } { export-source } {#1} {#2} }
   }
 \cs_generate_variant:Nn \__leanquote_export_fresh:nn { VV }
-\cs_generate_variant:Nn \__leanquote_from_export:n { V }
 
 % ---------------------------------------------------------------- main command
 \cs_new_protected:Npn \__leanquote_typeset:nn #1#2
@@ -1730,7 +1708,7 @@
     \bool_set_false:N \l__leanquote_sorrydecl_bool
     \bool_set_false:N \l__leanquote_axioms_bool
     \bool_set_false:N \l__leanquote_hasdecl_bool
-    \bool_set_false:N \l__leanquote_prepared_bool
+    \bool_set_false:N \l__leanquote_useexport_bool
     \bool_set:Nn \l_leanquote_check_bool { ! \str_if_eq_p:Vn \l_leanquote_verify_tl { false } }
     \str_set:Nn \l__leanquote_file_str {#1}
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
@@ -1739,11 +1717,12 @@
       { \msg_error:nnV { leanquote } { no-file } \l__leanquote_file_str }
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-10} {-1} } { .leanquote }
       {
+        \bool_set_true:N \l__leanquote_useexport_bool
+        \str_set_eq:NN \l__leanquote_export_str \l__leanquote_file_str
         \bool_if:NTF \l_leanquote_check_bool
           { \__leanquote_check:n {#1} }
           { \__leanquote_load_export:n {#1} }
       }
-    \bool_set_false:N \l__leanquote_useexport_bool
     \str_if_eq:eeT { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
       {
         \str_set:Ne \l__leanquote_export_str
@@ -1776,7 +1755,6 @@
     \bool_if:NT \l_leanquote_imports_bool
       {
         \seq_clear:N \l__leanquote_buf_seq
-        \bool_set_false:N \l__leanquote_prepared_bool
         \__leanquote_imports:V \l__leanquote_file_str
         \bool_if:NF \l__leanquote_found_bool
           { \msg_error:nnV { leanquote } { no-imports } \l__leanquote_file_str }
@@ -1790,16 +1768,11 @@
         \str_set:NV \l__leanquote_name_str \l_tmpa_tl
         \bool_if:NF \l__leanquote_first_bool { \iow_now:Nn \g__leanquote_iow { } }
         \seq_clear:N \l__leanquote_buf_seq
-        \bool_set_false:N \l__leanquote_prepared_bool
         \bool_set_false:N \l__leanquote_first_bool
         \bool_set_true:N \l__leanquote_hasdecl_bool
         \bool_if:NTF \l__leanquote_useexport_bool
-          { \__leanquote_from_export:V \l__leanquote_export_str }
-          {
-            \str_if_eq:eeTF { \str_range:Nnn \l__leanquote_file_str {-5} {-1} } { .lean }
-              { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
-              { \__leanquote_from_export:n {#1} }
-          }
+          { \__leanquote_from_export: }
+          { \exp_args:NV \__leanquote_from_source:n \l__leanquote_file_str }
         \bool_if:NF \l__leanquote_found_bool
           { \msg_error:nnVV { leanquote } { not-found } \l__leanquote_name_str \l__leanquote_file_str }
         \int_compare:nNnT { \l__leanquote_matches_int } > { 1 }
@@ -2244,31 +2217,27 @@
 \cs_new_eq:NN \__leanquote_tab: \lst@ProcessTabulator
 \cs_new_eq:NN \__leanquote_space: \lst@ProcessSpace
 \seq_new:N \l__leanquote_render_trailing_seq
-\bool_new:N \l__leanquote_render_trailing_bool
 \int_new:N \l__leanquote_render_trailing_line_int
 \cs_new_protected:Npn \__leanquote_render_trailing:
   {
     % The engine removes trailing spaces on listings' own file read too.
     % Replay them through the normal space renderer before closing the line.
-    \bool_if:NT \l__leanquote_render_trailing_bool
+    \bool_lazy_all:nT
       {
-        \bool_lazy_all:nT
-          {
-            { \int_compare_p:n { 0 < \lst@lineno <= \seq_count:N \l__leanquote_render_trailing_seq } }
-            { ! \int_compare_p:nNn { \lst@lineno } = { \l__leanquote_render_trailing_line_int } }
-          }
-          {
-            % Listings' bounds include a terminating \relax: compare them
-            % with its native integer convention, including at DeInit.
-            \ifnum \lst@lineno < \lst@firstline \else
-              \ifnum \lst@lineno > \lst@lastline \else
-                \int_set:Nn \l__leanquote_render_trailing_line_int { \lst@lineno }
-                \prg_replicate:nn
-                  { \seq_item:Nn \l__leanquote_render_trailing_seq { \lst@lineno } }
-                  { \__leanquote_render_space: }
-              \fi
-            \fi
-          }
+        { \int_compare_p:n { 0 < \lst@lineno <= \seq_count:N \l__leanquote_render_trailing_seq } }
+        { ! \int_compare_p:nNn { \lst@lineno } = { \l__leanquote_render_trailing_line_int } }
+      }
+      {
+        % Listings' bounds include a terminating \relax: compare them
+        % with its native integer convention, including at DeInit.
+        \ifnum \lst@lineno < \lst@firstline \else
+          \ifnum \lst@lineno > \lst@lastline \else
+            \int_set:Nn \l__leanquote_render_trailing_line_int { \lst@lineno }
+            \prg_replicate:nn
+              { \seq_item:Nn \l__leanquote_render_trailing_seq { \lst@lineno } }
+              { \__leanquote_render_space: }
+          \fi
+        \fi
       }
   }
 \lst@AddToHook { EOL } { \__leanquote_render_trailing: }
@@ -2553,7 +2522,7 @@
   }
 \cs_new_protected:Npn \__leanquote_render_init:
   {
-    \bool_set_false:N \l__leanquote_render_trailing_bool
+    \seq_clear:N \l__leanquote_render_trailing_seq
     \lst@ifleanquotelex
       \__leanquote_render_offset_begin:
       \__leanquote_lex_reset:
@@ -2570,10 +2539,8 @@
         }
         {
           \bool_set_true:N \l__leanquote_render_file_bool
-          \bool_set_true:N \l__leanquote_render_trailing_bool
           \int_set:Nn \l__leanquote_render_trailing_line_int {-1}
           \seq_clear:N \l__leanquote_render_maps_seq
-          \seq_clear:N \l__leanquote_render_trailing_seq
           \__leanquote_map_file:nn { \lst@intname }
             {
               \__leanquote_render_prepare:n {##1}

@@ -220,7 +220,7 @@ def readSourceSyntax (json : Json) : Except String SourceSyntax := do
             proof := ← readPosition a 4, endPos := ← readPosition a 6 : StatementBoundary}
   return {fields, statements}
 
-def sourceSyntax (target : Lake.Module) (source path : String) : IO SourceSyntax := do
+def sourceSyntax (target : Lake.Module) (source path : String) : IO (Option SourceSyntax) := do
   try
     IO.FS.withTempDir fun dir => do
       let script := (← IO.getEnv "LEANQUOTE_EXPORTER_FILE").getD exporterFile
@@ -235,10 +235,10 @@ def sourceSyntax (target : Lake.Module) (source path : String) : IO SourceSyntax
         args := args ++ #["--run", script, "--collect-syntax", target.name.toString,
                           path, snapshot.toString, output.toString]}
       unless child.exitCode == 0 do fail s!"collector exited {child.exitCode}: {child.stdout}{child.stderr}"
-      return ← IO.ofExcept (readSourceSyntax (← IO.ofExcept (Json.parse (← IO.FS.readFile output))))
+      return some (← IO.ofExcept (readSourceSyntax (← IO.ofExcept (Json.parse (← IO.FS.readFile output)))))
   catch e =>
     IO.eprintln s!"leanquote: statement views unavailable for {path}: {e}"
-    return {}
+    return none
 
 /-- Find a leading doc comment's lexical end, honoring nested block comments. -/
 def splitDoc (text : String) : String × String := Id.run do
@@ -345,8 +345,13 @@ def exportModule (args : List String) : IO Unit := do
   let lines := (text.splitOn "\n").toArray
   let env ← importModules #[{module := mod}] {}
   let some idx := env.getModuleIdx? mod | fail s!"module {mod} not imported"
-  let parsed ← if statements then sourceSyntax target text srcPath else pure {}
-  let fields ← if parsed.fields.isEmpty then fieldRanges env text srcPath else pure parsed.fields
+  let parsed? ← if statements then sourceSyntax target text srcPath else pure none
+  -- A successful replay is authoritative, even when there are no fields.
+  let parsed : SourceSyntax ← match parsed? with
+    | some parsed => pure parsed
+    | none => do
+      let fields ← fieldRanges env text srcPath
+      pure {fields}
   let ctx : Core.Context := {fileName := srcPath, fileMap := default}
   let mut entries : Array Entry := #[]
   for n in env.header.moduleData[idx.toNat]!.constNames do
@@ -354,7 +359,7 @@ def exportModule (args : List String) : IO Unit := do
     let some r := r? | continue
     unless sourceFacing env n (slice lines r.selectionRange) do continue
     let range := if r.range == r.selectionRange then
-        (fields.find? (contains · r.selectionRange)).getD r.range
+        (parsed.fields.find? (contains · r.selectionRange)).getD r.range
       else r.range
     let (axs, _) ← (collectAxioms n : CoreM _).toIO ctx {env}
     entries := entries.push {

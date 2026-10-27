@@ -468,8 +468,10 @@ BODY
         self.assertEqual(snapshot, self.snapshot)
         self.assertTrue(all(not entry["statement"] for entry in entries.values()))
         self.assertEqual(entries["Example.localAssignment"]["kind"], "theorem")
-        self.assertEqual(entries["Example.localAssignment"]["code"],
-                         self.entries["Example.localAssignment"]["code"])
+        for name in ["localAssignment", "Data.value", "Data.other", "Named.make", "Color.blue"]:
+            with self.subTest(name=name):
+                self.assertEqual(entries["Example." + name]["code"],
+                                 self.entries["Example." + name]["code"])
 
     def test_same_line_and_unicode_positions(self):
         self.assertEqual(self.code("sameA"), "def sameA : Nat := 3")
