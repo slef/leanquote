@@ -115,6 +115,34 @@ theorem pipe : Nat.succ 0
   |> (· = 1) := by rfl
 theorem gapProof : s!"first\\
 {"a:=b"}" = "firsta:=b" := by rfl
+/-- Default values and notation stay as written. -/
+@[simp] theorem defaultValue (n : Nat := 3) : 0 + n = n := by exact Nat.zero_add n
+theorem «unicode statement» (α : Type) (x : α) (s : String := "α:=b") : x = x := by rfl
+theorem equationView : (n : Nat) → n = n
+  | _ => rfl
+theorem patternFallback : Id.run do
+    let some p ← pure (some True)
+      | return False
+    return p := by trivial
+theorem inlineMatchReturn : Id.run do
+    let mut p := False
+    match true with | true => return True | false => p := True
+    return p
+ := by change True; trivial
+theorem guardedCatch :
+    let result : Except String Prop := do
+      let mut p := False
+      try return True catch | "x" => return True | _ => p := True
+      return p
+    result.toOption.getD False := by change True; trivial
+section
+local notation "PickType " p " := " q => q
+theorem localAssignment : PickType False := True := by trivial
+end
+section
+local notation "ChooseType " p " where " q => q
+theorem localWhere : ChooseType False where True := by trivial
+end
 def trailingTabs : Nat := 1 -- comment\t
 def marker : String := "header\t
 
@@ -156,7 +184,7 @@ def parse_export(text):
             assert current is None, line
             name = line.removeprefix("@@begin ")
             assert name not in entries, name
-            current = {"doc": [], "code": []}
+            current = {"doc": [], "code": [], "statement": []}
             entries[name] = current
         elif line == "@@end":
             assert current is not None
@@ -167,7 +195,11 @@ def parse_export(text):
             if tag == "@@axioms":
                 assert "axioms" not in current
                 current["axioms"] = value.split()
-            elif tag in ("@@doc", "@@code"):
+            elif tag == "@@kind":
+                assert "kind" not in current
+                assert value in ("theorem", "declaration")
+                current["kind"] = value
+            elif tag in ("@@doc", "@@code", "@@statement"):
                 current[tag[2:]].append(value)
             else:
                 raise AssertionError(f"unframed declaration line: {line!r}")
@@ -214,12 +246,13 @@ class ExporterTests(unittest.TestCase):
     def doc(self, name):
         return "\n".join(self.entries["Example." + name]["doc"])
 
-    def direct(self, source, output="direct.leanquote", *, success=True):
+    def direct(self, source, output="direct.leanquote", *, success=True, statements=None):
+        flags = [] if statements is None else ["--statements" if statements else "--no-statements"]
         return run(self.work, "lake", "env", "lean", "--run", native_path(CLI),
-                   "Demo", source, output, success=success)
+                   *flags, "Demo", source, output, success=success)
 
     def test_lake_source_and_artifact_provenance(self):
-        self.assertEqual(self.headers["@@leanquote-export"], "2")
+        self.assertEqual(self.headers["@@leanquote-export"], "3")
         self.assertEqual(self.headers["@@module"], "Demo")
         self.assertEqual(self.headers["@@source"], "package-src/lib-src/Demo.lean")
         self.assertEqual(self.headers["@@olean"], "artifacts/objects/Demo.olean")
@@ -319,6 +352,8 @@ srcDir = "lib-src"
                              ["private def hiddenValue : Nat := 1"])
             self.assertEqual(entries["Example.hiddenTruth"]["axioms"], [])
             self.assertEqual(entries["Example.usesHidden"]["axioms"], [])
+            self.assertEqual(entries["Example.hiddenTruth"]["statement"],
+                             ["private theorem hiddenTruth : True := ..."])
         finally:
             config.write_text(old, encoding="utf-8")
             modern.unlink()
@@ -368,7 +403,9 @@ srcDir = "lib-src"
         run(self.work, self.shell, native_path(WRAPPER), "Demo")
         shutil.copyfile(ROOT / "latex/leanquote.sty", self.work / "leanquote.sty")
         names = ["branchReturn", "branchMatch", "whereProof", "branchLet", "caught",
-                 "branchIf", "branchUnless", "bitwise", "boolean", "pipe", "gapProof"]
+                 "branchIf", "branchUnless", "bitwise", "boolean", "pipe", "gapProof",
+                 "defaultValue", "patternFallback", "inlineMatchReturn", "guardedCatch",
+                 "localAssignment", "localWhere", "equationView"]
         body = "\n".join(
             r"\leanquote[file=" + file + r",proof=false]{Example." + name + "}"
             for name in names for file in [
@@ -386,14 +423,49 @@ BODY
 """.replace("BODY", body), encoding="utf-8")
         output = run(self.work, engine, "-halt-on-error", "-interaction=nonstopmode", "proofs.tex")
         self.assertNotIn("LEANQUOTE-BADGE:", output)
-        expected = [
-            self.code(name).rsplit(" := by", 1)[0] + " := ..." if name != "whereProof" else
-            "theorem whereProof : True ∧ True := ..."
-            for name in names]
+        expected = ["\n".join(self.entries["Example." + name]["statement"]) for name in names]
+        self.assertTrue(all(expected), "Every representative theorem needs a prepared view")
         paths = sorted(self.work.glob("proofs-leanquote-*.lean"),
                        key=lambda path: int(path.stem.rsplit("-", 1)[1]))
         self.assertEqual([path.read_text(encoding="utf-8").strip() for path in paths],
                          [text for text in expected for _ in range(2)])
+
+    def test_statements_use_outer_lean_syntax_and_keep_original_source(self):
+        for name in ["defaultValue", "patternFallback", "inlineMatchReturn", "guardedCatch",
+                     "localAssignment", "localWhere", "whereProof", "equationView", "«unicode statement»"]:
+            with self.subTest(name=name):
+                entry = self.entries["Example." + name]
+                self.assertEqual(entry["kind"], "theorem")
+                statement = "\n".join(entry["statement"])
+                self.assertTrue(statement.endswith(" := ..."), statement)
+                self.assertNotIn("by trivial", statement)
+                self.assertNotIn("by rfl", statement)
+        self.assertEqual("\n".join(self.entries["Example.localAssignment"]["statement"]),
+                         "theorem localAssignment : PickType False := True := ...")
+        self.assertEqual("\n".join(self.entries["Example.localWhere"]["statement"]),
+                         "theorem localWhere : ChooseType False where True := ...")
+        self.assertEqual("\n".join(self.entries["Example.defaultValue"]["statement"]),
+                         "@[simp] theorem defaultValue (n : Nat := 3) : 0 + n = n := ...")
+        self.assertEqual("\n".join(self.entries["Example.whereProof"]["statement"]),
+                         "theorem whereProof : True ∧ True := ...")
+        self.assertEqual("\n".join(self.entries["Example.equationView"]["statement"]),
+                         "theorem equationView : (n : Nat) → n = n\n := ...")
+        for name in ["patternFallback", "inlineMatchReturn", "guardedCatch", "hidden", "«unicode statement»"]:
+            self.assertEqual("\n".join(self.entries["Example." + name]["statement"]),
+                             self.code(name).rsplit(" := by", 1)[0] + " := ...")
+        self.assertEqual(self.entries["Example.secret"]["kind"], "declaration")
+        self.assertEqual(self.entries["Example.secret"]["statement"], [])
+
+    def test_statement_collection_can_be_disabled(self):
+        self.direct("package-src/lib-src/Demo.lean", "without-statements.leanquote", statements=False)
+        headers, entries, snapshot = parse_export(
+            (self.work / "without-statements.leanquote").read_text(encoding="utf-8"))
+        self.assertEqual(headers["@@leanquote-export"], "3")
+        self.assertEqual(snapshot, self.snapshot)
+        self.assertTrue(all(not entry["statement"] for entry in entries.values()))
+        self.assertEqual(entries["Example.localAssignment"]["kind"], "theorem")
+        self.assertEqual(entries["Example.localAssignment"]["code"],
+                         self.entries["Example.localAssignment"]["code"])
 
     def test_same_line_and_unicode_positions(self):
         self.assertEqual(self.code("sameA"), "def sameA : Nat := 3")

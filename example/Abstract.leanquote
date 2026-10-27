@@ -1,26 +1,30 @@
-@@leanquote-export 2
+@@leanquote-export 3
 @@module TranslationTiling.Abstract
 @@source TranslationTiling/Abstract.lean
 @@olean .lake/build/lib/lean/TranslationTiling/Abstract.olean
 @@trace f5ea17cde6ff0886
 @@begin TranslationTiling.Abstract.Point
 @@axioms
+@@kind declaration
 @@doc /-- A point of `ℤ³`. -/
 @@code abbrev Point := Fin 3 → ℤ
 @@end
 @@begin TranslationTiling.Abstract.Prototile
 @@axioms
+@@kind declaration
 @@doc /-- A prototile: a finite set of points of `ℤ³`, given as a list. -/
 @@code abbrev Prototile := List Point
 @@end
 @@begin TranslationTiling.Abstract.Adjacent
 @@axioms propext Classical.choice Quot.sound
+@@kind declaration
 @@doc /-- Two points are adjacent when their `ℓ¹` distance is one. -/
 @@code def Adjacent (a b : Point) : Prop :=
 @@code   ∑ i, |a i - b i| = 1
 @@end
 @@begin TranslationTiling.Abstract.Connected
 @@axioms propext Classical.choice Quot.sound
+@@kind declaration
 @@doc /-- `P` is (face-)connected: any two of its points are joined by a path of
 @@doc adjacent points inside `P`. -/
 @@code def Connected (P : Prototile) : Prop :=
@@ -28,6 +32,7 @@
 @@end
 @@begin TranslationTiling.Abstract.Tiles
 @@axioms
+@@kind declaration
 @@doc /-- `P` tiles `ℤ³`: for some set `T` of translations, every point `x` lies in exactly
 @@doc one translate `t + P` with `t ∈ T`, i.e., for exactly one `t ∈ T` we have `x - t ∈ P`. -/
 @@code def Tiles (P : Prototile) : Prop :=
@@ -35,32 +40,39 @@
 @@end
 @@begin TranslationTiling.Abstract.tiling_coRE_complete
 @@axioms propext Classical.choice Quot.sound
+@@kind theorem
 @@doc /-- **Main theorem.** Deciding whether a connected prototile in `ℤ³` tiles space is
 @@doc co-r.e.-complete: the non-tilers are recursively enumerable, and every co-r.e.
 @@doc problem many-one reduces (computably) to it. -/
 @@code theorem tiling_coRE_complete : LeanWang.CoREComplete fun P => Connected P ∧ Tiles P :=
 @@code   AbstractBridge.connected_coRE_complete
+@@statement theorem tiling_coRE_complete : LeanWang.CoREComplete fun P => Connected P ∧ Tiles P := ...
 @@end
 @@begin TranslationTiling.Abstract.tiling_undecidable
 @@axioms propext Classical.choice Quot.sound
+@@kind theorem
 @@doc /-- **Corollary.** No algorithm decides whether a connected prototile in `ℤ³`
 @@doc tiles space. (Mathlib notions only.) -/
 @@code theorem tiling_undecidable : ¬ ComputablePred fun P => Connected P ∧ Tiles P :=
 @@code   AbstractBridge.connected_undecidable
+@@statement theorem tiling_undecidable : ¬ ComputablePred fun P => Connected P ∧ Tiles P := ...
 @@end
 @@begin TranslationTiling.Abstract.RealPoint
 @@axioms propext Classical.choice Quot.sound
+@@kind declaration
 @@doc /-- A point of `ℝ³`. -/
 @@code abbrev RealPoint := Fin 3 → ℝ
 @@end
 @@begin TranslationTiling.Abstract.Solid
 @@axioms propext Classical.choice Quot.sound
+@@kind declaration
 @@doc /-- The solid body of a prototile: the union of the unit cubes `p + [0, 1]³`, `p ∈ P`. -/
 @@code def Solid (P : Prototile) : Set RealPoint :=
 @@code   {x | ∃ p ∈ P, ∀ i, p i ≤ x i ∧ x i ≤ p i + 1}
 @@end
 @@begin TranslationTiling.Abstract.RealTiles
 @@axioms propext Classical.choice Quot.sound
+@@kind declaration
 @@doc /-- The solid body of `P` tiles `ℝ³` by translations: for some set `T ⊆ ℝ³` of
 @@doc (arbitrary real) translations, almost every point `x` of `ℝ³` lies in exactly one
 @@doc translate `t + Solid P` with `t ∈ T`. -/
@@ -69,17 +81,21 @@
 @@end
 @@begin TranslationTiling.Abstract.real_tiling_coRE_complete
 @@axioms propext Classical.choice Quot.sound
+@@kind theorem
 @@doc /-- Deciding whether the solid body of a connected prototile tiles `ℝ³` by arbitrary
 @@doc real translations is co-r.e.-complete. -/
 @@code theorem real_tiling_coRE_complete : LeanWang.CoREComplete fun P => Connected P ∧ RealTiles P :=
 @@code   AbstractBridge.connected_real_coRE_complete
+@@statement theorem real_tiling_coRE_complete : LeanWang.CoREComplete fun P => Connected P ∧ RealTiles P := ...
 @@end
 @@begin TranslationTiling.Abstract.real_tiling_undecidable
 @@axioms propext Classical.choice Quot.sound
+@@kind theorem
 @@doc /-- No algorithm decides whether a connected prototile tiles `ℝ³` by arbitrary
 @@doc real translations. (Mathlib notions only.) -/
 @@code theorem real_tiling_undecidable : ¬ ComputablePred fun P => Connected P ∧ RealTiles P :=
 @@code   AbstractBridge.connected_real_undecidable
+@@statement theorem real_tiling_undecidable : ¬ ComputablePred fun P => Connected P ∧ RealTiles P := ...
 @@end
 @@src import Mathlib.Computability.Halting
 @@src import Mathlib.MeasureTheory.Measure.Lebesgue.Basic

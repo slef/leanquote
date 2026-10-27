@@ -1,18 +1,20 @@
 /-
 Run from a Lake project root:
-  lake env lean --run path/to/LeanQuoteExport.lean MODULE [SOURCE.lean OUTPUT.leanquote]
+  lake env lean --run path/to/LeanQuoteExport.lean [--no-statements] MODULE [SOURCE.lean OUTPUT.leanquote]
 
 Lake resolves the source and compiled artifact and builds the module before export. The
 optional source argument is checked against Lake, never used to override its resolution.
 The default output is .lake/build/leanquote/<actual source path>.leanquote, independently
 of custom Lake build directories, matching the LaTeX reader's discovery convention.
 
-Version 2 records project-relative source/olean paths, Lake's trace depHash, exact
-declaration slices, compiled axiom dependencies, and the source snapshot. All payload
-lines have a prefix, including code lines, so source text cannot terminate a record.
+Version 3 adds declaration kinds and optional statement views to v2's provenance,
+exact declaration slices, axiom dependencies, and source snapshot. Collecting views
+replays the frontend in an isolated process; --no-statements skips this extra pass.
+All payload lines have a prefix, so source text cannot terminate a record.
 -/
 import Lean
 import Lean.Util.CollectAxioms
+import Lean.Elab.Frontend
 import Lake
 import Lake.Load.Workspace
 open Lean System
@@ -22,6 +24,13 @@ namespace LeanQuoteExport
 -- Capture the script's path during elaboration, including for relative --run paths.
 elab "leanquoteExporterFile%" : term => return toExpr (← getFileName)
 private def exporterFile : String := leanquoteExporterFile%
+
+-- The isolated collector is elaborated with the module's -D flags. Capture
+-- those options here instead of approximating Lean's command-line parser.
+elab "leanquoteCollectorOptions%" : term => do
+  let options := LeanOptions.fromOptions? (← getOptions) |>.getD {}
+  return toExpr (toJson options).compress
+private def collectorOptions : String := leanquoteCollectorOptions%
 
 def fail {α : Type} (message : String) : IO α :=
   throw <| IO.userError s!"leanquote-export: {message}"
@@ -48,6 +57,7 @@ def runWithNativeLake (args : List String) : IO UInt32 := do
     let child ← IO.Process.spawn {
       cmd := lake.lake.toString
       args := #["-f", driver.toString, "script", "run", "leanquoteExport"] ++ args.toArray
+      env := #[("LEANQUOTE_EXPORTER_FILE", some script.toString)]
     }
     return ← child.wait
 
@@ -128,6 +138,108 @@ def posLE (a b : Position) : Bool :=
 def contains (outer inner : DeclarationRange) : Bool :=
   posLE outer.pos inner.pos && posLE inner.endPos outer.endPos
 
+structure StatementBoundary where
+  selection : DeclarationRange
+  proof : Position
+  endPos : Position
+  deriving Inhabited
+
+structure SourceSyntax where
+  fields : Array DeclarationRange := #[]
+  statements : Array StatementBoundary := #[]
+
+/-- Inspect parsed declaration children, never search a term for textual `:=`.
+The declaration name and body positions are checked against compiled ranges later.
+This also handles lemma syntax that reuses Lean's declId/declVal parsers. -/
+partial def collectStatements (map : FileMap) (stx : Syntax) : Array StatementBoundary := Id.run do
+  let ids := stx.getArgs.filter (·.isOfKind ``Parser.Command.declId)
+  let bodies := stx.getArgs.filter fun child =>
+    child.isOfKind ``Parser.Command.declValSimple ||
+    child.isOfKind ``Parser.Command.declValEqns ||
+    child.isOfKind ``Parser.Command.whereStructInst
+  let mut result := #[]
+  if ids.size == 1 && bodies.size == 1 then
+    let id := ids[0]![0]
+    let body := bodies[0]!
+    if let (some start, some stop, some proof, some tail) :=
+        (id.getPos?, id.getTailPos?, body.getPos?, body.getTailPos?) then
+      result := result.push {
+        selection := {pos := map.toPosition start, endPos := map.toPosition stop,
+                      charUtf16 := 0, endCharUtf16 := 0}
+        proof := map.toPosition proof, endPos := map.toPosition tail}
+  return result ++ stx.getArgs.flatMap (collectStatements map)
+
+def positionJson (p : Position) : Array Json := #[toJson p.line, toJson p.column]
+
+/-- Replay the actual frontend in an isolated process. Parsing and elaboration
+advance together, so namespaces, local notation, macros, and options have their
+original scopes. The process writes positions only, never trusted axiom metadata. -/
+unsafe def collectSourceSyntax (mod path snapshot output : String) : IO Unit := do
+  initSearchPath (← findSysroot)
+  enableInitializersExecution
+  let source ← IO.FS.readFile snapshot
+  let options : LeanOptions ← IO.ofExcept (fromJson? (← IO.ofExcept (Json.parse collectorOptions)))
+  let opts := options.toOptions.setBool `Elab.async false
+  let input := Parser.mkInputContext source path
+  let (header, parser, messages) ← Parser.parseHeader input
+  let (env, messages) ← Elab.processHeader header opts messages input (mainModule := mod.toName)
+  if messages.hasErrors then
+    for message in messages.toList do IO.eprintln (← message.toString)
+    fail "source header replay failed"
+  let (_, state) ← (Elab.Frontend.processCommands.run {inputCtx := input}).run {
+    commandState := Elab.Command.mkState env messages opts,
+    parserState := parser, cmdPos := parser.pos}
+  if state.commandState.messages.hasErrors then
+    for message in state.commandState.messages.toList do
+      if message.severity == .error then IO.eprintln (← message.toString)
+    fail "source syntax replay failed"
+  let fields := state.commands.flatMap (collectFields input.fileMap)
+  let statements := state.commands.flatMap (collectStatements input.fileMap)
+  let json := Json.mkObj [
+    ("fields", toJson (fields.map fun r =>
+      Json.arr (positionJson r.pos ++ positionJson r.endPos))),
+    ("statements", toJson (statements.map fun r =>
+      Json.arr (positionJson r.selection.pos ++ positionJson r.selection.endPos ++
+                positionJson r.proof ++ positionJson r.endPos)))]
+  IO.FS.writeFile output json.compress
+
+def readPosition (values : Array Json) (offset : Nat) : Except String Position := do
+  return {line := ← values[offset]!.getNat?, column := ← values[offset+1]!.getNat?}
+
+def readSourceSyntax (json : Json) : Except String SourceSyntax := do
+  let fields ← (← (← json.getObjVal? "fields").getArr?).mapM fun value => do
+    let a ← value.getArr?
+    unless a.size == 4 do throw "invalid field positions"
+    return {pos := ← readPosition a 0, endPos := ← readPosition a 2,
+            charUtf16 := 0, endCharUtf16 := 0 : DeclarationRange}
+  let statements ← (← (← json.getObjVal? "statements").getArr?).mapM fun value => do
+    let a ← value.getArr?
+    unless a.size == 8 do throw "invalid statement positions"
+    return {selection := {pos := ← readPosition a 0, endPos := ← readPosition a 2,
+                          charUtf16 := 0, endCharUtf16 := 0},
+            proof := ← readPosition a 4, endPos := ← readPosition a 6 : StatementBoundary}
+  return {fields, statements}
+
+def sourceSyntax (target : Lake.Module) (source path : String) : IO SourceSyntax := do
+  try
+    IO.FS.withTempDir fun dir => do
+      let script := (← IO.getEnv "LEANQUOTE_EXPORTER_FILE").getD exporterFile
+      let snapshot := dir / "source.lean"
+      let output := dir / "syntax.json"
+      IO.FS.writeFile snapshot source
+      let mut args := (target.weakLeanArgs ++ target.leanArgs).filter (·.startsWith "-D")
+      for (name, value) in target.leanOptions.values do
+        args := args.push s!"-D{name}={value.asCliFlagValue}"
+      let child ← IO.Process.output {
+        cmd := (← findSysroot) / "bin" / "lean" |>.toString
+        args := args ++ #["--run", script, "--collect-syntax", target.name.toString,
+                          path, snapshot.toString, output.toString]}
+      unless child.exitCode == 0 do fail s!"collector exited {child.exitCode}: {child.stdout}{child.stderr}"
+      return ← IO.ofExcept (readSourceSyntax (← IO.ofExcept (Json.parse (← IO.FS.readFile output))))
+  catch e =>
+    IO.eprintln s!"leanquote: statement views unavailable for {path}: {e}"
+    return {}
+
 /-- Find a leading doc comment's lexical end, honoring nested block comments. -/
 def splitDoc (text : String) : String × String := Id.run do
   let chars := text.toList.toArray
@@ -164,6 +276,7 @@ structure Entry where
   range : DeclarationRange
   selection : DeclarationRange
   axioms : Array Name
+  isTheorem : Bool
 
 def before (a b : Entry) : Bool :=
   a.range.pos.line < b.range.pos.line ||
@@ -184,10 +297,14 @@ def checkMetadata (label value : String) (word := false) : IO Unit := do
     fail s!"unsupported whitespace in {label}: {reprStr value}"
 
 def exportModule (args : List String) : IO Unit := do
+  let (statements, args) := match args with
+    | "--no-statements" :: rest => (false, rest)
+    | "--statements" :: rest => (true, rest)
+    | _ => (true, args)
   let (modStr, requested) ← match args with
     | [mod] => pure (mod, none)
     | [mod, src, out] => pure (mod, some (src, out))
-    | _ => fail "usage: LeanQuoteExport MODULE [SOURCE.lean OUTPUT.leanquote]"
+    | _ => fail "usage: LeanQuoteExport [--no-statements] MODULE [SOURCE.lean OUTPUT.leanquote]"
   let mod := modStr.toName
   let root ← IO.currentDir
   let ws ← loadWorkspace
@@ -228,7 +345,8 @@ def exportModule (args : List String) : IO Unit := do
   let lines := (text.splitOn "\n").toArray
   let env ← importModules #[{module := mod}] {}
   let some idx := env.getModuleIdx? mod | fail s!"module {mod} not imported"
-  let fields ← fieldRanges env text srcPath
+  let parsed ← if statements then sourceSyntax target text srcPath else pure {}
+  let fields ← if parsed.fields.isEmpty then fieldRanges env text srcPath else pure parsed.fields
   let ctx : Core.Context := {fileName := srcPath, fileMap := default}
   let mut entries : Array Entry := #[]
   for n in env.header.moduleData[idx.toNat]!.constNames do
@@ -241,13 +359,14 @@ def exportModule (args : List String) : IO Unit := do
     let (axs, _) ← (collectAxioms n : CoreM _).toIO ctx {env}
     entries := entries.push {
       name := privateToUserName n, range,
-      selection := r.selectionRange, axioms := axs}
+      selection := r.selectionRange, axioms := axs,
+      isTheorem := (env.find? n).any fun ci => match ci with | .thmInfo _ => true | _ => false}
   -- A constructor named `elim`, for example, also generates `elim.elim` with the
   -- same selection. Even matching name suffixes do not make these source names.
   entries := entries.filter fun entry => !entries.any fun parent =>
     parent.name != entry.name && parent.name.isPrefixOf entry.name &&
       parent.selection == entry.selection
-  let mut out := s!"@@leanquote-export 2\n@@module {mod}\n@@source {srcPath}\n@@olean {oleanPath}\n@@trace {depHash}\n"
+  let mut out := s!"@@leanquote-export 3\n@@module {mod}\n@@source {srcPath}\n@@olean {oleanPath}\n@@trace {depHash}\n"
   let mut seen : Std.HashSet Name := {}
   for entry in entries.qsort before do
     checkMetadata "declaration name" entry.name.toString
@@ -259,7 +378,18 @@ def exportModule (args : List String) : IO Unit := do
     out := out ++ s!"@@begin {entry.name}\n@@axioms"
     if !entry.axioms.isEmpty then
       out := out ++ " " ++ " ".intercalate (entry.axioms.toList.map toString)
-    out := out ++ "\n" ++ payload "@@doc" doc ++ payload "@@code" code ++ "@@end\n"
+    out := out ++ s!"\n@@kind {if entry.isTheorem then "theorem" else "declaration"}\n" ++
+      payload "@@doc" doc ++ payload "@@code" code
+    if entry.isTheorem then
+      let boundaries := parsed.statements.filter fun b =>
+        b.selection.pos == entry.selection.pos && b.selection.endPos == entry.selection.endPos &&
+        b.endPos == entry.range.endPos && posLE entry.selection.endPos b.proof
+      if boundaries.size == 1 then
+        let header := slice lines {entry.range with endPos := boundaries[0]!.proof}
+        let header := String.ofList (header.toList.reverse.dropWhile (fun c => c == ' ' || c == '\t')).reverse
+        let (_, statement) := splitDoc (header ++ " := ...")
+        out := out ++ payload "@@statement" statement
+    out := out ++ "@@end\n"
   -- TeX strips trailing ASCII spaces and the final newline, but retains tabs.
   -- A tab inside a multiline string is significant source text.
   let srcLines := if lines.back? == some "" then lines.pop else lines
@@ -277,9 +407,13 @@ def exportModule (args : List String) : IO Unit := do
 
 end LeanQuoteExport
 
-def main (args : List String) : IO UInt32 := do
+unsafe def main (args : List String) : IO UInt32 := do
   try
-    return ← LeanQuoteExport.runWithNativeLake args
+    match args with
+    | ["--collect-syntax", mod, path, snapshot, output] =>
+      LeanQuoteExport.collectSourceSyntax mod path snapshot output
+      return 0
+    | _ => return ← LeanQuoteExport.runWithNativeLake args
   catch e =>
     IO.eprintln e
     return 1

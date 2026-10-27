@@ -14,7 +14,7 @@ class ExampleTests(unittest.TestCase):
         headers, entries, snapshot = parse_export(
             (ROOT / "example/Abstract.leanquote").read_text(encoding="utf-8")
         )
-        self.assertEqual(headers["@@leanquote-export"], "2")
+        self.assertEqual(headers["@@leanquote-export"], "3")
         self.assertEqual(headers["@@module"], "TranslationTiling.Abstract")
         self.assertEqual(headers["@@source"], "TranslationTiling/Abstract.lean")
         self.assertEqual(headers["@@olean"],
@@ -39,6 +39,10 @@ class ExampleTests(unittest.TestCase):
                             if name in standard else set())
                 self.assertEqual(set(entries[prefix + name]["axioms"]), expected)
                 self.assertTrue(entries[prefix + name]["code"])
+                if entries[prefix + name]["kind"] == "theorem":
+                    code = "\n".join(entries[prefix + name]["code"])
+                    self.assertEqual("\n".join(entries[prefix + name]["statement"]),
+                                     code.rsplit(" :=", 1)[0] + " := ...")
 
 
 if __name__ == "__main__":

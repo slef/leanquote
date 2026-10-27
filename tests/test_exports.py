@@ -5,6 +5,69 @@ from tex_support import TexTestCase
 
 
 class ExportTests(TexTestCase):
+    def test_v3_prepared_statement_bypasses_source_heuristics(self):
+        code = "theorem value : let p := True; p := by trivial\n"
+        statement = "theorem value : let p := True; p := ...\n"
+        files = export_files(code, version=3, kind="theorem", statement=statement, axioms="sorryAx")
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[file=A.lean,proof=false,verify=true]{value}
+\leanquote[file=A.leanquote,proof=false,verify=true]{value}
+\leanquote[file=A.leanquote,proof=true,verify=true]{value}
+""")
+        self.assertEqual(snippets, [statement.strip(), statement.strip(), code.strip()])
+        self.assertNotIn("Cannot safely hide", output)
+        self.assertEqual(output.count("LEANQUOTE-BADGE:USES SORRY"), 3)
+        self.assertNotIn("LEANQUOTE-BADGE:UNVERIFIED", output)
+
+    def test_v3_missing_view_keeps_theorem_and_warns(self):
+        code = "theorem value : True := by trivial\n"
+        files = export_files(code, version=3, kind="theorem")
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[file=A.leanquote,proof=false]{value}
+\leanquote[file=A.leanquote,proof=true]{value}
+""")
+        self.assertEqual(snippets, [code.strip()] * 2)
+        self.assertEqual(output.count("Cannot safely hide"), 1)
+        self.assertNotIn("LEANQUOTE-BADGE:", output)
+
+    def test_v3_definitions_and_documentation_keep_full_source(self):
+        code = 'def value : String := "@@statement literal"\n'
+        files = export_files(code, version=3)
+        files["A.leanquote"] = files["A.leanquote"].replace("@@code def", "@@doc /-- Kept docs. -/\n@@code def")
+        snippets, output = self.compile_tex(files, r"\leanquote[file=A.leanquote,proof=false,doc]{value}")
+        self.assertEqual(snippets, ["/-- Kept docs. -/\n" + code.strip()])
+        self.assertNotIn("Cannot safely hide", output)
+
+    def test_v3_requires_a_declaration_kind(self):
+        files = export_files(version=3)
+        files["A.leanquote"] = files["A.leanquote"].replace("@@kind declaration\n", "")
+        self.compile_tex(files, r"\leanquote[file=A.leanquote]{value}", success=False)
+
+    def test_v3_portable_statement_keeps_verification_policy(self):
+        code = "theorem value : let p := True; p := by trivial\n"
+        statement = "theorem value : let p := True; p := ...\n"
+        files = {"A.leanquote": make_export(code, version=3, kind="theorem", statement=statement)}
+        snippets, output = self.compile_tex(files, r"""
+\leanquote[file=A.leanquote,proof=false,verify=auto]{value}
+\leanquote[file=A.leanquote,proof=false,verify=true]{value}
+""")
+        self.assertEqual(snippets, [statement.strip()] * 2)
+        self.assertEqual(output.count("LEANQUOTE-BADGE:UNVERIFIED"), 1)
+        self.assertNotIn("Cannot safely hide", output)
+
+    def test_v3_blank_statement_keeps_code_and_doc_is_independent(self):
+        code = "theorem value : True := by trivial\n"
+        files = export_files(code, version=3, kind="theorem", statement=" \n")
+        files["A.leanquote"] = files["A.leanquote"].replace("@@code theorem", "@@doc /-- Kept. -/\n@@code theorem")
+        snippets, output = self.compile_tex(files, r"\leanquote[file=A.leanquote,doc,proof=false]{value}")
+        self.assertEqual(snippets, ["/-- Kept. -/\n" + code.strip()])
+        self.assertIn("Cannot safely hide", output)
+
+        files["A.leanquote"] = files["A.leanquote"].replace("@@statement  \n", "@@statement theorem value : True := ...\n")
+        snippets, output = self.compile_tex(files, r"\leanquote[file=A.leanquote,doc,proof=false]{value}")
+        self.assertEqual(snippets, ["/-- Kept. -/\ntheorem value : True := ..."])
+        self.assertNotIn("Cannot safely hide", output)
+
     def test_unrelated_sidecar_cannot_supply_fallback_artifact(self):
         bad = "theorem bad : False := by no_such_tactic\n"
         good = "def value : Nat := 1\n"

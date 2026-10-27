@@ -251,9 +251,9 @@ class ParsingTests(unittest.TestCase):
                     r"\leanquote[file=Saved.leanquote,proof=false]{" + name + "}", export=exported)
                 self.assertEqual(snippets, [expected])
 
-    def test_equation_theorem_proofs_are_hidden(self):
+    def test_source_equation_proofs_are_kept_conservatively(self):
         declaration = 'theorem equation : (n : Nat) → n = n\n  | _ => rfl\n'
-        expected = declaration.split('\n')[0] + '\n := ...'
+        expected = declaration.strip()
         snippets, _ = self.compile(declaration, r"\leanquote[proof=false]{equation}")
         self.assertEqual(snippets, [expected])
         exported = '@@leanquote-export 1\n@@begin equation\n@@axioms\n' + declaration + '@@end\n'
@@ -263,7 +263,7 @@ class ParsingTests(unittest.TestCase):
     def test_match_type_alternatives_are_not_equation_proofs(self):
         declaration = ('theorem matchType : match true with\n'
                        '  | true => True\n  | false => True := by trivial\n')
-        expected = declaration.rsplit(' := by', 1)[0] + ' := ...'
+        expected = declaration.strip()
         snippets, _ = self.compile(declaration, r"\leanquote[proof=false]{matchType}", olean=bool(shutil.which("lean")))
         self.assertEqual(snippets, [expected])
         exported = '@@leanquote-export 1\n@@begin matchType\n@@axioms\n' + declaration + '@@end\n'
@@ -327,6 +327,29 @@ class ParsingTests(unittest.TestCase):
         snippets, output = self.compile(NAMESPACES, r"\leanquote{foo}")
         self.assertEqual(snippets, ["def foo : Nat := 1"])
         self.assertIn("matches several declarations", output)
+
+    def test_uncertain_term_proof_or_delimiter_keeps_every_source_line(self):
+        declarations = [
+            "theorem reference : True := True.intro",
+            "theorem argument : True ∧ True := And.intro trivial trivial",
+            "theorem bracketed : (let p := True; p) := by trivial",
+        ]
+        lean = "\n".join(declarations) + "\n"
+        body = "".join(r"\leanquote[proof=false]{" + name + "}"
+                       for name in ["reference", "argument", "bracketed"])
+        snippets, output = self.compile(lean, body, olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, ["theorem reference : True := ...", declarations[1],
+                                   "theorem bracketed : (let p := True; p) := ..."])
+        self.assertEqual(output.count("Cannot safely hide"), 1)
+
+        # A custom statement notation may itself contain :=. A candidate whose
+        # remaining text contains another delimiter must never become a quote.
+        custom = ('local notation "PickType " p " := " q => q\n'
+                  'theorem custom : PickType False := True := by trivial\n')
+        snippets, output = self.compile(custom, r"\leanquote[proof=false]{custom}",
+                                       olean=bool(shutil.which("lean")))
+        self.assertEqual(snippets, [custom.splitlines()[1]])
+        self.assertIn("Cannot safely hide", output)
 
     def test_unknown_qualified_names_error(self):
         for name in ["Missing.foo", "Missing.child", "A.Inner.after", "A.globalValue"]:
@@ -518,7 +541,7 @@ class ParsingTests(unittest.TestCase):
             'theorem unicode ⦃s : String⦄ : s = s := ...',
         ])
 
-    def test_result_type_assignments_are_preserved(self):
+    def test_complex_result_types_keep_complete_declarations(self):
         declarations = [
             "theorem proofLet : let p := True; p := by trivial",
             "theorem proofHave : have p := True; p := by trivial",
@@ -592,6 +615,14 @@ class ParsingTests(unittest.TestCase):
             "theorem conditionalBinding : Id.run do\n    let mut p := False\n"
             "    if let some _ := some 0 then let q := True; return q else p := True\n"
             "    return p\n := by change True; trivial",
+            "theorem patternFallback : Id.run do\n    let some p ← pure (some True)\n"
+            "      | return False\n    return p := by trivial",
+            "theorem inlineMatchReturn : Id.run do\n    let mut p := False\n"
+            "    match true with | true => return True | false => p := True\n"
+            "    return p\n := by change True; trivial",
+            "theorem guardedCatch :\n    let result : Except String Prop := do\n"
+            "      let mut p := False\n      try return True catch | \"x\" => return True | _ => p := True\n"
+            "      return p\n    result.toOption.getD False := by change True; trivial",
         ]
         # Each source quote scans the file. Keep both the source and quote count
         # bounded per process as this regression collection grows; retain the
@@ -602,16 +633,18 @@ class ParsingTests(unittest.TestCase):
             with self.subTest(names=names):
                 lean = "\n".join(batch) + "\n"
                 body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
-                expected = [decl.rsplit(" := by", 1)[0] + " := ..." for decl in batch]
-                snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
+                expected = batch
+                snippets, output = self.compile(lean, body, olean=bool(shutil.which("lean")))
                 self.assertEqual(snippets, expected)
+                self.assertEqual(output.count("Cannot safely hide"), len(batch))
                 exported = "@@leanquote-export 2\n" + "".join(
                     "@@begin " + name + "\n@@axioms\n" +
                     "".join("@@code " + line + "\n" for line in decl.splitlines()) + "@@end\n"
                     for name, decl in zip(names, batch))
-                saved, _ = self.compile("", body.replace("[proof=false]",
+                saved, output = self.compile("", body.replace("[proof=false]",
                     "[proof=false,file=Saved.leanquote]"), export=exported)
                 self.assertEqual(saved, expected)
+                self.assertEqual(output.count("Cannot safely hide"), len(batch))
 
     def test_where_proofs_are_hidden_before_the_fields(self):
         declarations = [
@@ -626,7 +659,7 @@ class ParsingTests(unittest.TestCase):
                 "\n".join(declarations) + "\n")
         body = "".join(r"\leanquote[proof=false]{" + decl.split()[1] + "}"
                        for decl in declarations)
-        expected = [decl.rsplit(" where", 1)[0] + " := ..." for decl in declarations[:2]] + [
+        expected = declarations[:2] + [
             decl.rsplit(" := by", 1)[0] + " := ..." for decl in declarations[2:]]
         snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
         self.assertEqual(snippets, expected)
@@ -643,7 +676,7 @@ class ParsingTests(unittest.TestCase):
                 "theorem proofUnicode : (n : Nat) → αmatch n\n  | _ => rfl\n")
         body = r"\leanquote[proof=false]{proofUnicode}"
         snippets, _ = self.compile(lean, body, olean=bool(shutil.which("lean")))
-        expected = ["theorem proofUnicode : (n : Nat) → αmatch n\n := ..."]
+        expected = ["theorem proofUnicode : (n : Nat) → αmatch n\n  | _ => rfl"]
         self.assertEqual(snippets, expected)
         exported = ("@@leanquote-export 2\n@@begin proofUnicode\n@@axioms\n"
                     "@@code theorem proofUnicode : (n : Nat) → αmatch n\n"
@@ -652,7 +685,7 @@ class ParsingTests(unittest.TestCase):
                                 export=exported)
         self.assertEqual(saved, expected)
 
-    def test_proof_hiding_tracks_binding_and_match_scopes(self):
+    def test_legacy_complex_bindings_keep_original_proofs(self):
         declarations = [
             "theorem letEq : let p : Nat → Prop | _ => True; p 0 := by trivial",
             "theorem haveEq : have p : Nat → Prop | _ => True; p 0 := by trivial",
@@ -666,10 +699,7 @@ class ParsingTests(unittest.TestCase):
         ]
         names = [declaration.split()[1] for declaration in declarations]
         body = "".join(r"\leanquote[proof=false]{" + name + "}" for name in names)
-        expected = [declaration.rsplit(" := by", 1)[0] + " := ..."
-                    if " := by" in declaration else
-                    declaration.rsplit("\n  |", 1)[0] + "\n := ..."
-                    for declaration in declarations]
+        expected = declarations
         snippets, _ = self.compile("\n".join(declarations) + "\n", body,
                                    olean=bool(shutil.which("lean")))
         self.assertEqual(snippets, expected)
